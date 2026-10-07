@@ -8,7 +8,7 @@ purpose is to have fun coding and discover useful opportunities through real dat
 
 ## Read next
 
-- [06-developer-handoff.md](06-developer-handoff.md): resume setup, extract a reusable template, and continue with the GitHub ticket backlog.
+- [06-developer-handoff.md](06-developer-handoff.md): skeleton setup and a self-contained checklist for beginning implementation.
 - [01-direction-and-boundaries.md](01-direction-and-boundaries.md): agreed direction and architecture.
 - [02-bootstrap.md](02-bootstrap.md): initial bootstrap history.
 - [03-sail-ci-and-deployment.md](03-sail-ci-and-deployment.md): current local stack, helpers, CI and Hetzner direction.
