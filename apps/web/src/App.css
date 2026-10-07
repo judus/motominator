@@ -1,0 +1,16 @@
+#root {
+  max-width: 60rem;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+button {
+  font: inherit;
+  padding: 0.6rem 1rem;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: wait;
+}

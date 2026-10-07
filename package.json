@@ -1,0 +1,34 @@
+{
+  "name": "motominator",
+  "version": "0.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=24.3.0 <25",
+    "npm": ">=11 <12"
+  },
+  "packageManager": "npm@11.9.0",
+  "scripts": {
+    "dev:server": "cd apps/server && ./vendor/bin/sail up -d --wait",
+    "dev:web": "npm run dev --workspace=@motominator/web",
+    "dev:mobile": "npm run start --workspace=@motominator/mobile",
+    "build:web": "npm run build --workspace=@motominator/web",
+    "build:server": "npm run build --workspace=@motominator/server",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test:server": "cd apps/server && ./vendor/bin/sail test --compact",
+    "build:mobile": "npm run export --workspace=@motominator/mobile",
+    "test": "npm run test:web && npm run test:mobile",
+    "test:web": "npm run test --workspace=@motominator/web",
+    "test:mobile": "npm run test --workspace=@motominator/mobile",
+    "format": "npm run format --workspace=@motominator/web && npm run format --workspace=@motominator/mobile",
+    "format:check": "npm run format:check --workspace=@motominator/web && npm run format:check --workspace=@motominator/mobile",
+    "dev:mobile:mcp": "npm run start:mcp --workspace=@motominator/mobile"
+  },
+  "devDependencies": {
+    "prettier": "^3.9.9"
+  }
+}

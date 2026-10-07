@@ -1,0 +1,117 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server:
+    name: Laravel / MySQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/server
+    env:
+      APP_ENV: testing
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_DATABASE: testing
+      DB_USERNAME: sail
+      DB_PASSWORD: password
+      REDIS_HOST: 127.0.0.1
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_DATABASE: testing
+          MYSQL_USER: sail
+          MYSQL_PASSWORD: password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -ppassword"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+      redis:
+        image: redis:alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: mbstring, intl, bcmath, pdo_mysql, pdo_sqlite, redis, pcntl, posix
+          coverage: none
+          tools: composer:v2
+      - name: Validate Composer manifest and lockfile
+        run: composer validate --strict
+      - name: Install PHP dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate --no-interaction
+      - name: Validate Sail configuration
+        run: docker compose config --quiet
+        env:
+          WWWUSER: '1001'
+          WWWGROUP: '1001'
+      - name: Check PHP formatting
+        run: vendor/bin/pint --test
+      - name: Analyse PHP with Larastan
+        run: composer analyse
+      - name: Run MySQL migrations
+        run: php artisan migrate --force --no-interaction
+      - name: Run server tests
+        run: php artisan test --compact
+
+  clients:
+    name: Browser / Expo
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install npm 11
+        run: npm install --global npm@11.9.0
+      - name: Install workspace dependencies
+        run: npm ci
+      - name: Lint clients
+        run: npm run lint
+      - name: Typecheck clients
+        run: npm run typecheck
+      - name: Check client formatting
+        run: npm run format:check
+      - name: Test browser and mobile apps
+        run: npm test
+      - name: Build browser app
+        run: npm run build:web
+      - name: Build Laravel starter assets
+        run: npm run build:server
+      - name: Export Android, iOS and Expo web bundles
+        run: npm run build:mobile
