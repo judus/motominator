@@ -164,7 +164,7 @@ return [
     */
 
     'features' => [
-        Features::registration(),
+        ...(config('auth.registration_enabled') ? [Features::registration()] : []),
         Features::resetPasswords(),
         Features::emailVerification(),
         Features::updateProfileInformation(),

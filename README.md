@@ -137,6 +137,41 @@ Implementation work is tracked in [GitHub issues](https://github.com/judus/motom
 starting with [browser authentication #1](https://github.com/judus/motominator/issues/1).
 Known npm advisory findings are tracked separately in [#7](https://github.com/judus/motominator/issues/7).
 
+## Server administration
+
+Filament provides the server admin UI at `/admin`, with login at `/admin/login`
+and public account registration at `/admin/register`. Registered accounts are regular
+users: registration signs them out with confirmation, and administrator access must
+be granted separately. The admin panel lists, creates and edits users. Administrator
+status is read-only there; account deletion is not enabled.
+
+To create the first administrator, register an account, then run:
+
+```sh
+just artisan app:grant-admin your-email@example.com
+```
+
+If public registration is disabled, create an account interactively with
+`just artisan make:filament-user --panel=admin`, then grant access with the command
+above. No default administrator or password is seeded. Admin permissions are enforced
+in local development as well as other environments.
+
+Set `AUTH_REGISTRATION_ENABLED=false` in the server environment and run
+`just artisan optimize:clear` to disable both Filament and Fortify public registration.
+Administrators can still create users through the panel. Login remains enabled.
+
+The login page links to password recovery at `/admin/password-reset/request`.
+Reset emails return to Filament and update the shared account password. Administrators
+must verify their email before entering the panel; the verification screen offers a
+resend link. Reset and panel verification notifications are queued through Redis and
+Horizon. During local development, read those emails in Mailpit at `http://localhost:8025`.
+
+Filament uses the shared Laravel `web` session guard and challenges confirmed Fortify
+two-factor secrets on login. Admin two-factor enrollment/recovery screens remain
+future account-settings work; the admin login currently supports authenticator codes.
+Changing a user's email in the panel clears email verification. Leaving its password
+blank while editing preserves the existing password.
+
 ## Checks and builds
 
 ```sh
