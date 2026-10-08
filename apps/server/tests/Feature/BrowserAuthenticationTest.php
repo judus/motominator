@@ -99,6 +99,15 @@ class BrowserAuthenticationTest extends TestCase
         $this->postJson('/reset-password', $payload)->assertUnprocessable();
     }
 
+    public function test_invalid_reset_links_do_not_reveal_whether_an_account_exists(): void
+    {
+        $user = User::factory()->create();
+        $payload = ['token' => 'invalid', 'password' => 'replacement-password', 'password_confirmation' => 'replacement-password'];
+        $known = $this->postJson('/reset-password', $payload + ['email' => $user->email])->assertUnprocessable()->json();
+        $unknown = $this->postJson('/reset-password', $payload + ['email' => 'missing@example.test'])->assertUnprocessable()->json();
+        $this->assertSame($known, $unknown);
+    }
+
     public function test_verification_mail_targets_the_browser_and_signed_api_link_verifies_only_its_user(): void
     {
         Notification::fake();

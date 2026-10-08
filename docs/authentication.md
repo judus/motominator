@@ -29,7 +29,8 @@ path. Filament retains its own reset and verification URLs. Local mail goes to
 Mailpit (`http://localhost:8025`); queued panel notifications require Horizon.
 
 Reset links expire after 60 minutes and are consumed once. Unknown and known
-accounts receive the same recovery response. Recovery and registration are limited
+accounts receive the same recovery response; invalid reset links also return the
+same error for known and unknown emails. Recovery and registration are limited
 to six requests/minute per IP/path; login, verification and token routes have
 additional rate limits. Verification changes only the authenticated account;
 changing email clears verification and sends a new message.
