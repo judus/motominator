@@ -10,6 +10,7 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('horizon:snapshot')->everyFiveMinutes();
+Schedule::command('sanctum:prune-expired --hours=24')->daily();
 
 if (app()->environment('local') && class_exists(TelescopeServiceProvider::class)) {
     Schedule::command('telescope:prune')->daily();

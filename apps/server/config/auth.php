@@ -5,6 +5,8 @@ use App\Models\User;
 return [
 
     'registration_enabled' => env('AUTH_REGISTRATION_ENABLED', true),
+    'mobile_token_ttl_minutes' => (int) env('MOBILE_TOKEN_TTL_MINUTES', 43200),
+    'mobile_return_url' => env('MOBILE_AUTH_RETURN_URL', 'motominator://auth-return'),
 
     /*
     |--------------------------------------------------------------------------

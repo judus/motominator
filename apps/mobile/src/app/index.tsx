@@ -1,5 +1,5 @@
 import * as Device from "expo-device";
-import { Platform, StyleSheet } from "react-native";
+import { Platform, ScrollView, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { AnimatedIcon } from "@/components/animated-icon";
@@ -9,6 +9,9 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { WebBadge } from "@/components/web-badge";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import { useAuth } from "@/auth/auth-context";
+import { Button, Host } from "@expo/ui";
+import { useState } from "react";
 
 function getDevMenuHint() {
   if (Platform.OS === "web") {
@@ -30,35 +33,57 @@ function getDevMenuHint() {
 }
 
 export default function HomeScreen() {
+  const auth = useAuth();
+  const [message, setMessage] = useState("");
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Motominator
+        <ScrollView contentContainerStyle={styles.content}>
+          <ThemedView style={styles.heroSection}>
+            <AnimatedIcon />
+            <ThemedText type="title" style={styles.title}>
+              Motominator
+            </ThemedText>
+          </ThemedView>
+
+          <ServerStatus />
+          <ThemedText>Signed in as {auth.user?.name}</ThemedText>
+          <Host matchContents>
+            <Button
+              label="Sign out"
+              onPress={() => {
+                void auth
+                  .logout()
+                  .catch(() =>
+                    setMessage(
+                      "Unable to revoke this device. Check your connection and retry.",
+                    ),
+                  );
+              }}
+            />
+          </Host>
+          {message || auth.error ? (
+            <ThemedText>{message || auth.error}</ThemedText>
+          ) : null}
+
+          <ThemedText type="code" style={styles.code}>
+            get started
           </ThemedText>
-        </ThemedView>
 
-        <ServerStatus />
+          <ThemedView type="backgroundElement" style={styles.stepContainer}>
+            <HintRow
+              title="Try editing"
+              hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
+            />
+            <HintRow title="Dev tools" hint={getDevMenuHint()} />
+            <HintRow
+              title="Fresh start"
+              hint={<ThemedText type="code">npm run reset-project</ThemedText>}
+            />
+          </ThemedView>
 
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
-
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
-
-        {Platform.OS === "web" && <WebBadge />}
+          {Platform.OS === "web" && <WebBadge />}
+        </ScrollView>
       </SafeAreaView>
     </ThemedView>
   );
@@ -71,22 +96,25 @@ const styles = StyleSheet.create({
     flexDirection: "row",
   },
   safeArea: {
-    flex: 1,
     paddingHorizontal: Spacing.four,
-    alignItems: "center",
     gap: Spacing.three,
     paddingBottom: BottomTabInset + Spacing.three,
     maxWidth: MaxContentWidth,
   },
+  content: {
+    alignItems: "center",
+    gap: Spacing.three,
+    paddingBottom: Spacing.four,
+  },
   heroSection: {
     alignItems: "center",
     justifyContent: "center",
-    flex: 1,
     paddingHorizontal: Spacing.four,
     gap: Spacing.four,
   },
   title: {
     textAlign: "center",
+    fontSize: 36,
   },
   code: {
     textTransform: "uppercase",

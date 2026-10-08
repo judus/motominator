@@ -14,3 +14,40 @@ button {
 button:disabled {
   cursor: wait;
 }
+
+main {
+  display: grid;
+  gap: 1.5rem;
+  text-align: left;
+}
+nav {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+section {
+  padding: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  display: grid;
+  gap: 1rem;
+}
+form {
+  display: grid;
+  gap: 1rem;
+  max-width: 30rem;
+}
+label {
+  display: grid;
+  gap: 0.4rem;
+}
+input,
+select {
+  font: inherit;
+  padding: 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 0.3rem;
+}
+[role="alert"] {
+  color: #bd3131;
+}

@@ -22,6 +22,6 @@ class ApiStatusTest extends TestCase
             'Origin' => 'http://localhost:5173',
         ]);
 
-        $response->assertOk()->assertHeader('Access-Control-Allow-Origin', '*');
+        $response->assertOk()->assertHeader('Access-Control-Allow-Origin', 'http://localhost:5173');
     }
 }

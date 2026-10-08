@@ -19,6 +19,18 @@ class DevelopmentToolsTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_horizon_allows_verified_administrators_outside_local_development(): void
+    {
+        $this->actingAs(User::factory()->make(['is_admin' => true]))
+            ->get('/horizon')->assertOk();
+    }
+
+    public function test_horizon_denies_unverified_administrators(): void
+    {
+        $this->actingAs(User::factory()->unverified()->make(['is_admin' => true]))
+            ->get('/horizon')->assertForbidden();
+    }
+
     public function test_horizon_is_available_in_local_development(): void
     {
         $this->app->instance('env', 'local');
