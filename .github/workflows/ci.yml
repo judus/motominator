@@ -16,7 +16,7 @@ jobs:
   server:
     name: Laravel / MySQL
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: apps/server
@@ -84,6 +84,28 @@ jobs:
         run: php artisan migrate --force --no-interaction
       - name: Run server tests
         run: php artisan test --compact
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install browser test dependencies
+        working-directory: .
+        run: npm ci
+      - name: Install Chromium
+        working-directory: .
+        run: npx playwright install --with-deps chromium
+      - name: Test browser cookie authentication
+        working-directory: .
+        run: npm run test:e2e --workspace=@motominator/web
+        env:
+          E2E_SERVER_COMMAND: cd ../server && php artisan serve --host=0.0.0.0 --port=8001 --no-reload
+          APP_ENV: e2e
+          APP_URL: http://localhost:8001
+          FRONTEND_URL: http://localhost:5179
+          CORS_ALLOWED_ORIGINS: http://localhost:5179
+          SANCTUM_STATEFUL_DOMAINS: localhost:5179
+          AUTH_REGISTRATION_ENABLED: 'true'
+          MAIL_MAILER: array
 
   clients:
     name: Browser / Expo

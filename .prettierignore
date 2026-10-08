@@ -7,3 +7,5 @@ AGENTS.md
 .agents/
 .codex/
 package-lock.json
+test-results/
+playwright-report/

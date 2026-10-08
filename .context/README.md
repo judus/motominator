@@ -18,3 +18,6 @@ purpose is to have fun coding and discover useful opportunities through real dat
 
 Keep these notes current when the direction or setup changes. Record observed facts
 separately from ideas. Do not turn exploratory ideas into an assumed implementation roadmap.
+
+Authentication implementation and remaining external setup are recorded in
+[07-authentication.md](07-authentication.md).

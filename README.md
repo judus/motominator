@@ -167,8 +167,8 @@ resend link. Reset and panel verification notifications are queued through Redis
 Horizon. During local development, read those emails in Mailpit at `http://localhost:8025`.
 
 Filament uses the shared Laravel `web` session guard and challenges confirmed Fortify
-two-factor secrets on login. Admin two-factor enrollment/recovery screens remain
-future account-settings work; the admin login currently supports authenticator codes.
+two-factor secrets on login. Two-factor enrollment and recovery-code management are available in the React account
+settings; the admin login supports authenticator codes.
 Changing a user's email in the panel clears email verification. Leaving its password
 blank while editing preserves the existing password.
 
@@ -196,8 +196,9 @@ Local iOS simulator/build tools require macOS.
 three test suites; `npm test` runs the two client suites only. `just format` applies
 PHP/client formatting. Tests also have app-scoped watch scripts (`npm run test:watch
 --workspace=@motominator/web` or `@motominator/mobile`). Mobile tests live outside
-`src/app` so Expo Router does not treat them as routes. These are component/API tests;
-real browser/device end-to-end tests are not configured yet.
+`src/app` so Expo Router does not treat them as routes. Playwright also checks real browser cookie/CSRF authentication in CI; run it with
+`npm run test:e2e --workspace=@motominator/web` after PHP tests. Native emulator
+verification and its limits are recorded in [docs/authentication.md](docs/authentication.md).
 
 PHPUnit stays in place while the Pest choice remains open. Larastan includes application,
 route, bootstrap, database and test code. Its only current suppression is Laravel's
@@ -225,3 +226,9 @@ The Sail PHP container must be running for Boost. See
 [docs/agent-tooling.md](docs/agent-tooling.md) for setup and verification details.
 
 Setup history, dependency findings and verification limits are in `.context/`.
+
+## Authentication implementation
+
+See [docs/authentication.md](docs/authentication.md) for browser sessions, recovery,
+Socialite identities, two-factor settings, native device tokens and deferred external
+configuration. Current dependency blockers are in [docs/dependency-audit.md](docs/dependency-audit.md).
