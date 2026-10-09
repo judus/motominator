@@ -1,0 +1,15 @@
+Motominator — All rights reserved
+
+Copyright (c) 2026 Julien Duseyau. All rights reserved.
+
+Original Motominator code, documentation and assets are proprietary. No license
+is granted to use, reproduce, modify, distribute or sublicense this work without
+prior written permission from the copyright holder, except as permitted by
+applicable law or the terms of the hosting platform.
+
+Public availability of this repository does not grant an open-source license.
+
+Third-party dependencies and incorporated scaffold code remain subject to their
+own licenses. In particular, apps/mobile/LICENSE preserves the MIT notice for
+Expo scaffold code. This notice does not replace third-party licenses or revoke
+permissions already granted under them.
