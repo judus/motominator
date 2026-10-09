@@ -2,7 +2,10 @@ name: CI
 
 on:
   push:
+    branches: [dev, main]
   pull_request:
+    branches: [dev, main]
+    types: [opened, synchronize, reopened, edited, ready_for_review]
   workflow_dispatch:
 
 permissions:
@@ -13,6 +16,34 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  policy:
+    name: PR route
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate integration route
+        env:
+          PR_BASE: ${{ github.base_ref }}
+          PR_HEAD: ${{ github.head_ref }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          if [[ "$PR_BASE" == main ]]; then
+            if [[ "$PR_HEAD" != dev || "$HEAD_REPOSITORY" != "$REPOSITORY" ]]; then
+              echo '::error::Only the repository dev branch may target main.'
+              exit 1
+            fi
+          elif [[ "$PR_BASE" == dev ]]; then
+            if [[ ! "$PR_HEAD" =~ ^(feature|fix|chore|refactor|docs|test|ci)/[a-z0-9][a-z0-9._/-]*$ ]]; then
+              echo '::error::Target dev from feature/, fix/, chore/, refactor/, docs/, test/ or ci/ branches.'
+              exit 1
+            fi
+          else
+            echo '::error::Unsupported integration target.'
+            exit 1
+          fi
+
   server:
     name: Laravel / MySQL
     runs-on: ubuntu-latest
@@ -59,7 +90,7 @@ jobs:
           persist-credentials: false
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.5'
+          php-version: "8.5"
           extensions: mbstring, intl, bcmath, pdo_mysql, pdo_sqlite, redis, pcntl, posix
           coverage: none
           tools: composer:v2
@@ -67,6 +98,8 @@ jobs:
         run: composer validate --strict
       - name: Install PHP dependencies
         run: composer install --prefer-dist --no-interaction --no-progress
+      - name: Audit PHP dependencies
+        run: composer audit --no-interaction
       - name: Prepare environment
         run: |
           cp .env.example .env
@@ -74,10 +107,10 @@ jobs:
       - name: Validate Sail configuration
         run: docker compose config --quiet
         env:
-          WWWUSER: '1001'
-          WWWGROUP: '1001'
+          WWWUSER: "1001"
+          WWWGROUP: "1001"
       - name: Check PHP formatting
-        run: vendor/bin/pint --test
+        run: composer format:check
       - name: Analyse PHP with Larastan
         run: composer analyse
       - name: Run MySQL migrations
@@ -98,13 +131,13 @@ jobs:
         working-directory: .
         run: npm run test:e2e --workspace=@motominator/web
         env:
-          E2E_SERVER_COMMAND: cd ../server && php artisan serve --host=0.0.0.0 --port=8001 --no-reload
+          E2E_SERVER_COMMAND: cd ../server && php artisan serve --host=127.0.0.1 --port=8001 --no-reload
           APP_ENV: e2e
           APP_URL: http://localhost:8001
           FRONTEND_URL: http://localhost:5179
           CORS_ALLOWED_ORIGINS: http://localhost:5179
           SANCTUM_STATEFUL_DOMAINS: localhost:5179
-          AUTH_REGISTRATION_ENABLED: 'true'
+          AUTH_REGISTRATION_ENABLED: "true"
           MAIL_MAILER: array
 
   clients:
@@ -137,3 +170,22 @@ jobs:
         run: npm run build:server
       - name: Export Android, iOS and Expo web bundles
         run: npm run build:mobile
+
+  quality:
+    name: Quality gate
+    if: always()
+    needs: [policy, server, clients]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require all gates to succeed
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          POLICY_RESULT: ${{ needs.policy.result }}
+          SERVER_RESULT: ${{ needs.server.result }}
+          CLIENTS_RESULT: ${{ needs.clients.result }}
+        run: |
+          [[ "$SERVER_RESULT" == success && "$CLIENTS_RESULT" == success ]] || exit 1
+          if [[ "$EVENT_NAME" == pull_request ]]; then
+            [[ "$POLICY_RESULT" == success ]] || exit 1
+          fi
