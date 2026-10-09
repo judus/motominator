@@ -51,13 +51,13 @@ Run `just` to list all helpers.
 
 ## Local services
 
-| Service | Host address/port | Container host |
-| --- | --- | --- |
-| Laravel API | `http://localhost:8000` | `laravel.test:80` |
-| MySQL | `127.0.0.1:3306` | `mysql:3306` |
-| Redis | `127.0.0.1:6379` | `redis:6379` |
-| Mailpit inbox | `http://localhost:8025` | `mailpit:8025` |
-| Mailpit SMTP | `localhost:1025` | `mailpit:1025` |
+| Service       | Host address/port       | Container host    |
+| ------------- | ----------------------- | ----------------- |
+| Laravel API   | `http://localhost:8000` | `laravel.test:80` |
+| MySQL         | `127.0.0.1:3306`        | `mysql:3306`      |
+| Redis         | `127.0.0.1:6379`        | `redis:6379`      |
+| Mailpit inbox | `http://localhost:8025` | `mailpit:8025`    |
+| Mailpit SMTP  | `localhost:1025`        | `mailpit:1025`    |
 
 Local MySQL credentials are `sail` / `password`, database `motominator`.
 Sail also creates a separate `testing` database for tests on first MySQL initialization.
@@ -186,11 +186,11 @@ npm run build:mobile
 it does not produce installable native binaries. Native builds/signing are future steps.
 Local iOS simulator/build tools require macOS.
 
-| App | Tests | Analysis | Formatting |
-| --- | --- | --- | --- |
-| Server | PHPUnit 12 via `just test` | Larastan/PHPStan level 5 via `just analyse` | Laravel Pint (Laravel preset) |
-| Browser | Vitest + React Testing Library via `npm run test:web` | TypeScript + scaffold Oxlint config | Prettier defaults |
-| Mobile | Jest + `jest-expo` + React Native Testing Library via `npm run test:mobile` | TypeScript + Expo ESLint config | Prettier defaults |
+| App     | Tests                                                                       | Analysis                                    | Formatting                    |
+| ------- | --------------------------------------------------------------------------- | ------------------------------------------- | ----------------------------- |
+| Server  | PHPUnit 12 via `just test`                                                  | Larastan/PHPStan level 5 via `just analyse` | Laravel Pint (Laravel preset) |
+| Browser | Vitest + React Testing Library via `npm run test:web`                       | TypeScript + scaffold Oxlint config         | Prettier defaults             |
+| Mobile  | Jest + `jest-expo` + React Native Testing Library via `npm run test:mobile` | TypeScript + Expo ESLint config             | Prettier defaults             |
 
 `just check` checks analysis and formatting across all apps. `just test-all` runs all
 three test suites; `npm test` runs the two client suites only. `just format` applies
@@ -232,3 +232,10 @@ Setup history, dependency findings and verification limits are in `.context/`.
 See [docs/authentication.md](docs/authentication.md) for browser sessions, recovery,
 Socialite identities, two-factor settings, native device tokens and deferred external
 configuration. Current dependency blockers are in [docs/dependency-audit.md](docs/dependency-audit.md).
+
+## License
+
+Copyright (c) 2026 Julien Duseyau. All rights reserved. Motominator is proprietary
+and is not currently offered under an open-source license. See [LICENSE](LICENSE).
+Third-party dependencies and scaffold code retain their own licenses, including
+the Expo notice in [apps/mobile/LICENSE](apps/mobile/LICENSE).

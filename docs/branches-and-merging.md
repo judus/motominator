@@ -23,28 +23,21 @@ See the security/dependency reviews for residual advisories and production contr
 
 ## Protection status
 
-On 2026-10-10 GitHub returned 403 for rulesets and branch protection:
-"Upgrade to GitHub Pro or make this repository public to enable this feature."
-The repository remains private. Until the plan supports protection, passing checks
-are a convention: GitHub permits direct pushes and merging failed PRs. CI cannot
-enforce its own required status or prevent itself being removed.
+On 2026-10-10 the repository became public and the **Integration branches**
+ruleset (ID `24822021`) was activated for both `dev` and `main`.
 
-`.github/rulesets/integration.json` is the prepared protection payload: require PRs,
-resolve conversations, require current `Quality gate` results from GitHub Actions,
-block force pushes/deletion and provide no admin bypass. Required human approvals
-are zero for solo development; Copilot is optional.
+The rules require PRs, resolved conversations and a successful, current
+`Quality gate` from GitHub Actions. Force pushes and branch deletion are blocked;
+there are no bypass actors. Required human approvals are zero for solo development;
+Copilot is optional. The payload is `.github/rulesets/integration.json`.
 
-After support is enabled and the new workflow is present on `dev`/`main`, apply:
+Strict checks require feature branches to incorporate the latest `dev` before
+merging. If `main` changes independently, merge it back into `dev` before promotion.
+The integration workflow is published on `dev`; promoting it to `main` must use a
+PR from `dev` with that workflow and successful checks.
 
-```sh
-gh api --method POST repos/judus/motominator/rulesets \
-  --input .github/rulesets/integration.json
-```
-
-Read the installed rules back before claiming enforcement. Use the update endpoint
-instead of creating duplicates if a ruleset already exists. Strict checks require
-feature branches to incorporate the latest `dev` before merging. If `main` changes
-independently, merge it back into `dev` before promotion.
+For future changes, update the existing ruleset rather than creating a duplicate,
+and read the installed rules back to verify enforcement.
 
 ## Optional Copilot review
 
