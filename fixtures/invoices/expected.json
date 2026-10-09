@@ -1,0 +1,224 @@
+{
+  "synthetic": true,
+  "motorcycle": {
+    "make": "Ducati",
+    "model": "Monster",
+    "year": 2022
+  },
+  "fixtures": [
+    {
+      "pdf": "01-oil-service-en.pdf",
+      "image": null,
+      "language": "en",
+      "suggested_title": "Oil and filter service",
+      "expected": {
+        "invoice_number": "TEST-2024-001",
+        "performed_on": "2024-05-17",
+        "odometer_km": 28000,
+        "currency": "CHF",
+        "subtotal_amount": "240.00",
+        "tax_amount": "19.44",
+        "total_amount": "259.44",
+        "labor_minutes": 60,
+        "workshop": {
+          "name": "Alpine Moto Atelier",
+          "address": "Example Lane 12, 9999 Testville, Switzerland",
+          "email": "service@alpine-moto.example.test",
+          "phone": null,
+          "tax_number": "CHE-000.000.000 (fictional)"
+        },
+        "items": [
+          {
+            "description": "Engine oil (5 L)",
+            "quantity": "5.0000",
+            "unit_price": "20.0000",
+            "net_amount": "100.00",
+            "tax_rate": "8.1",
+            "tax_amount": "8.10",
+            "total_amount": "108.10",
+            "labor_minutes": null
+          },
+          {
+            "description": "Oil filter",
+            "quantity": "1.0000",
+            "unit_price": "20.0000",
+            "net_amount": "20.00",
+            "tax_rate": "8.1",
+            "tax_amount": "1.62",
+            "total_amount": "21.62",
+            "labor_minutes": null
+          },
+          {
+            "description": "Oil and filter replacement labor (1 hour)",
+            "quantity": "1.0000",
+            "unit_price": "120.0000",
+            "net_amount": "120.00",
+            "tax_rate": "8.1",
+            "tax_amount": "9.72",
+            "total_amount": "129.72",
+            "labor_minutes": 60
+          }
+        ],
+        "notes": null
+      }
+    },
+    {
+      "pdf": "02-brake-service-en.pdf",
+      "image": null,
+      "language": "en",
+      "suggested_title": "Brake service",
+      "expected": {
+        "invoice_number": "TEST-2025-014",
+        "performed_on": "2025-04-09",
+        "odometer_km": 41000,
+        "currency": "CHF",
+        "subtotal_amount": "250.00",
+        "tax_amount": "20.25",
+        "total_amount": "270.25",
+        "labor_minutes": 45,
+        "workshop": {
+          "name": "Alpine Moto Atelier",
+          "address": "Example Lane 12, 9999 Testville, Switzerland",
+          "email": null,
+          "phone": null,
+          "tax_number": null
+        },
+        "items": [
+          {
+            "description": "Front brake pad set",
+            "quantity": "1.0000",
+            "unit_price": "140.0000",
+            "net_amount": "140.00",
+            "tax_rate": "8.1",
+            "tax_amount": "11.34",
+            "total_amount": "151.34",
+            "labor_minutes": null
+          },
+          {
+            "description": "Brake fluid",
+            "quantity": "1.0000",
+            "unit_price": "20.0000",
+            "net_amount": "20.00",
+            "tax_rate": "8.1",
+            "tax_amount": "1.62",
+            "total_amount": "21.62",
+            "labor_minutes": null
+          },
+          {
+            "description": "Brake service labor (45 minutes)",
+            "quantity": "0.7500",
+            "unit_price": "120.0000",
+            "net_amount": "90.00",
+            "tax_rate": "8.1",
+            "tax_amount": "7.29",
+            "total_amount": "97.29",
+            "labor_minutes": 45
+          }
+        ],
+        "notes": null
+      }
+    },
+    {
+      "pdf": "03-tyre-service-de.pdf",
+      "image": "03-tyre-service-de.png",
+      "language": "de",
+      "suggested_title": "Tyre replacement and balancing",
+      "expected": {
+        "invoice_number": "TEST-DE-2025-008",
+        "performed_on": "2025-10-21",
+        "odometer_km": 49000,
+        "currency": "EUR",
+        "subtotal_amount": "260.00",
+        "tax_amount": "49.40",
+        "total_amount": "309.40",
+        "labor_minutes": 30,
+        "workshop": {
+          "name": "Werkstatt Nord Beispiel",
+          "address": "Musterstrasse 8, 00000 Beispielstadt, Germany",
+          "email": "service@werkstatt-nord.example.test",
+          "phone": null,
+          "tax_number": "DE000000000 (fictional)"
+        },
+        "items": [
+          {
+            "description": "Reifen (2 Stueck)",
+            "quantity": "2.0000",
+            "unit_price": "100.0000",
+            "net_amount": "200.00",
+            "tax_rate": "19",
+            "tax_amount": "38.00",
+            "total_amount": "238.00",
+            "labor_minutes": null
+          },
+          {
+            "description": "Montage und Auswuchten (30 Minuten)",
+            "quantity": "0.5000",
+            "unit_price": "120.0000",
+            "net_amount": "60.00",
+            "tax_rate": "19",
+            "tax_amount": "11.40",
+            "total_amount": "71.40",
+            "labor_minutes": 30
+          }
+        ],
+        "notes": null
+      }
+    },
+    {
+      "pdf": "04-service-discount-fr.pdf",
+      "image": "04-service-discount-fr.jpg",
+      "language": "fr",
+      "suggested_title": "Chain kit replacement",
+      "expected": {
+        "invoice_number": "TEST-FR-2026-021",
+        "performed_on": "2026-08-03",
+        "odometer_km": null,
+        "currency": "CHF",
+        "subtotal_amount": "260.00",
+        "tax_amount": "21.06",
+        "total_amount": "281.06",
+        "labor_minutes": null,
+        "workshop": {
+          "name": "Atelier Moto Exemple",
+          "address": "Rue fictive 5, 9999 Ville Exemple, Switzerland",
+          "email": null,
+          "phone": null,
+          "tax_number": null
+        },
+        "items": [
+          {
+            "description": "Kit chaine - fourniture",
+            "quantity": "1.0000",
+            "unit_price": "80.0000",
+            "net_amount": "80.00",
+            "tax_rate": "8.1",
+            "tax_amount": "6.48",
+            "total_amount": "86.48",
+            "labor_minutes": null
+          },
+          {
+            "description": "Remplacement du kit chaine - forfait",
+            "quantity": "1.0000",
+            "unit_price": "200.0000",
+            "net_amount": "200.00",
+            "tax_rate": "8.1",
+            "tax_amount": "16.20",
+            "total_amount": "216.20",
+            "labor_minutes": null
+          },
+          {
+            "description": "Remise commerciale",
+            "quantity": "1.0000",
+            "unit_price": "-20.0000",
+            "net_amount": "-20.00",
+            "tax_rate": "8.1",
+            "tax_amount": "-1.62",
+            "total_amount": "-21.62",
+            "labor_minutes": null
+          }
+        ],
+        "notes": null
+      }
+    }
+  ]
+}

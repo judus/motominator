@@ -20,18 +20,20 @@
         "laravel/tinker": "^3.0"
     },
     "require-dev": {
+        "barryvdh/laravel-ide-helper": "^3.7",
         "fakerphp/faker": "^1.23",
         "fruitcake/laravel-debugbar": "^4.4",
         "larastan/larastan": "^3.0",
         "laravel/boost": "^2.10",
         "laravel/pail": "^1.2.5",
         "laravel/pao": "^1.0.6",
-        "laravel/pint": "^1.27",
         "laravel/sail": "^1.68",
         "laravel/telescope": "^5.25",
         "mockery/mockery": "^1.6",
         "nunomaduro/collision": "^8.6",
-        "phpunit/phpunit": "^12.5.12"
+        "phpunit/phpunit": "^12.5.12",
+        "slevomat/coding-standard": "^8.31",
+        "squizlabs/php_codesniffer": "^4.0"
     },
     "autoload": {
         "psr-4": {
@@ -79,8 +81,15 @@
             "Illuminate\\Foundation\\ComposerScripts::prePackageUninstall"
         ],
         "analyse": "phpstan analyse --no-progress --memory-limit=1G",
-        "format": "pint",
-        "format:check": "pint --test"
+        "format": "@style:fix",
+        "format:check": "@style:check",
+        "style:check": "phpcs --standard=phpcs.xml",
+        "style:fix": "@php scripts/format.php",
+        "ide:helpers": [
+            "@php artisan ide-helper:generate --no-interaction",
+            "@php artisan ide-helper:meta --no-interaction"
+        ],
+        "ide:models": "@php artisan ide-helper:models --write --no-interaction"
     },
     "extra": {
         "laravel": {
@@ -96,7 +105,8 @@
         "sort-packages": true,
         "allow-plugins": {
             "pestphp/pest-plugin": true,
-            "php-http/discovery": true
+            "php-http/discovery": true,
+            "dealerdirect/phpcodesniffer-composer-installer": false
         }
     },
     "minimum-stability": "stable",

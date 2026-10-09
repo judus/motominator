@@ -27,13 +27,16 @@ class AdminAccountRecoveryTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('admin'));
     }
 
-    public function test_login_links_to_the_password_reset_form(): void
+    public function testLoginLinksToThePasswordResetForm(): void
     {
-        $this->get('/admin/login')->assertOk()->assertSee(Filament::getRequestPasswordResetUrl(), false);
-        $this->get(Filament::getRequestPasswordResetUrl())->assertOk();
+        $this->get('/admin/login')->assertOk()->assertSee(
+            $this->stringValue(Filament::getRequestPasswordResetUrl()),
+            false
+        );
+        $this->get($this->stringValue(Filament::getRequestPasswordResetUrl()))->assertOk();
     }
 
-    public function test_admin_reset_email_opens_the_panel_and_resets_the_shared_password(): void
+    public function testAdminResetEmailOpensThePanelAndResetsTheSharedPassword(): void
     {
         Notification::fake();
         $admin = User::factory()->create(['is_admin' => true]);
@@ -44,6 +47,7 @@ class AdminAccountRecoveryTest extends TestCase
             ->assertHasNoFormErrors();
 
         $notification = Notification::sent($admin, ResetPasswordNotification::class)->sole();
+        $this->assertInstanceOf(ResetPasswordNotification::class, $notification);
         $this->assertStringContainsString('/admin/password-reset/reset?', $notification->url);
         $this->get($notification->url)->assertOk();
 
@@ -53,12 +57,12 @@ class AdminAccountRecoveryTest extends TestCase
             ->assertHasNoFormErrors()
             ->assertRedirect('/admin/login');
 
-        $this->assertTrue(Hash::check('replacement-password-123', $admin->refresh()->password));
+        $this->assertTrue(Hash::check('replacement-password-123', $admin->refresh()->password ?? ''));
         $this->assertFalse(Password::broker('users')->tokenExists($admin, $notification->token));
         $this->assertGuest();
     }
 
-    public function test_regular_users_do_not_receive_admin_reset_links(): void
+    public function testRegularUsersDoNotReceiveAdminResetLinks(): void
     {
         Notification::fake();
         $user = User::factory()->create();
@@ -70,7 +74,7 @@ class AdminAccountRecoveryTest extends TestCase
         Notification::assertNothingSent();
     }
 
-    public function test_invalid_reset_tokens_do_not_change_passwords(): void
+    public function testInvalidResetTokensDoNotChangePasswords(): void
     {
         $admin = User::factory()->create(['is_admin' => true]);
 
@@ -79,26 +83,28 @@ class AdminAccountRecoveryTest extends TestCase
             ->call('resetPassword')
             ->assertNotified(__('passwords.token'));
 
-        $this->assertTrue(Hash::check('password', $admin->refresh()->password));
+        $this->assertTrue(Hash::check('password', $admin->refresh()->password ?? ''));
     }
 
-    public function test_reset_links_reject_tampered_signatures(): void
+    public function testResetLinksRejectTamperedSignatures(): void
     {
         $admin = User::factory()->create(['is_admin' => true]);
-        $url = Filament::getResetPasswordUrl('token', $admin).'&extra=tampered';
+        $url = Filament::getResetPasswordUrl('token', $admin) . '&extra=tampered';
 
         $this->get($url)->assertForbidden();
     }
 
-    public function test_unverified_administrators_are_sent_to_verification_before_user_management(): void
+    public function testUnverifiedAdministratorsAreSentToVerificationBeforeUserManagement(): void
     {
         $admin = User::factory()->unverified()->create(['is_admin' => true]);
 
-        $this->actingAs($admin)->get('/admin/users')->assertRedirect(Filament::getEmailVerificationPromptUrl());
-        $this->get(Filament::getEmailVerificationPromptUrl())->assertOk();
+        $this->actingAs($admin)->get('/admin/users')->assertRedirect(
+            $this->stringValue(Filament::getEmailVerificationPromptUrl())
+        );
+        $this->get($this->stringValue(Filament::getEmailVerificationPromptUrl()))->assertOk();
     }
 
-    public function test_resending_verification_sends_a_panel_link_that_unlocks_access(): void
+    public function testResendingVerificationSendsAPanelLinkThatUnlocksAccess(): void
     {
         Notification::fake();
         $admin = User::factory()->unverified()->create(['is_admin' => true]);
@@ -107,13 +113,14 @@ class AdminAccountRecoveryTest extends TestCase
         Livewire::test(EmailVerificationPrompt::class)->callAction('resendNotification');
 
         $notification = Notification::sent($admin, VerifyEmail::class)->sole();
+        $this->assertInstanceOf(VerifyEmail::class, $notification);
         $this->assertStringContainsString('/admin/email-verification/verify/', $notification->url);
         $this->get($notification->url)->assertRedirect('/admin');
         $this->assertNotNull($admin->refresh()->email_verified_at);
         $this->get('/admin/users')->assertOk();
     }
 
-    public function test_verification_rejects_expired_links(): void
+    public function testVerificationRejectsExpiredLinks(): void
     {
         $this->freezeTime();
         $admin = User::factory()->unverified()->create(['is_admin' => true]);
@@ -124,7 +131,7 @@ class AdminAccountRecoveryTest extends TestCase
         $this->assertNull($admin->refresh()->email_verified_at);
     }
 
-    public function test_verification_rejects_links_for_a_different_account(): void
+    public function testVerificationRejectsLinksForADifferentAccount(): void
     {
         $admin = User::factory()->unverified()->create(['is_admin' => true]);
         $other = User::factory()->unverified()->create(['is_admin' => true]);
@@ -135,7 +142,7 @@ class AdminAccountRecoveryTest extends TestCase
         $this->assertNull($other->refresh()->email_verified_at);
     }
 
-    public function test_signed_out_verification_links_require_admin_login(): void
+    public function testSignedOutVerificationLinksRequireAdminLogin(): void
     {
         $admin = User::factory()->unverified()->create(['is_admin' => true]);
 

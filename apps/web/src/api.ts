@@ -1,20 +1,14 @@
+import { ApiError } from "@motominator/client";
 export const apiBaseUrl = (
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000"
 ).replace(/\/$/, "");
 
-export class ApiError extends Error {
-  status: number;
-  errors: Record<string, string[]>;
-  constructor(
-    status: number,
-    errors: Record<string, string[]> = {},
-    message = "Request failed.",
-  ) {
-    super(message);
-    this.status = status;
-    this.errors = errors;
-  }
+let authenticationGeneration = 0;
+export function invalidateAuthenticationRequests() {
+  authenticationGeneration++;
 }
+
+export { ApiError } from "@motominator/client";
 
 export async function request<T = Record<string, unknown>>(
   path: string,
@@ -22,6 +16,7 @@ export async function request<T = Record<string, unknown>>(
   data?: unknown,
   notifyExpired = true,
 ): Promise<T> {
+  const current = authenticationGeneration;
   const headers: Record<string, string> = {
     Accept: "application/json",
     "X-Requested-With": "XMLHttpRequest",
@@ -37,6 +32,8 @@ export async function request<T = Record<string, unknown>>(
         {},
         "Unable to initialize a secure session.",
       );
+    if (current !== authenticationGeneration)
+      throw new ApiError(409, {}, "Your account changed. Please retry.");
     const cookie = document.cookie
       .split("; ")
       .find((value) => value.startsWith("XSRF-TOKEN="));
@@ -44,18 +41,25 @@ export async function request<T = Record<string, unknown>>(
       headers["X-XSRF-TOKEN"] = decodeURIComponent(
         cookie.slice("XSRF-TOKEN=".length),
       );
-    headers["Content-Type"] = "application/json";
+    if (!(data instanceof FormData))
+      headers["Content-Type"] = "application/json";
   }
   const response = await fetch(`${apiBaseUrl}${path}`, {
     method,
     credentials: "include",
     headers,
-    ...(data === undefined ? {} : { body: JSON.stringify(data) }),
+    ...(data === undefined
+      ? {}
+      : { body: data instanceof FormData ? data : JSON.stringify(data) }),
   });
   const body =
     response.status === 204 ? {} : await response.json().catch(() => ({}));
   if (!response.ok) {
-    if (notifyExpired && (response.status === 401 || response.status === 419))
+    if (
+      notifyExpired &&
+      current === authenticationGeneration &&
+      (response.status === 401 || response.status === 419)
+    )
       window.dispatchEvent(new Event("auth-expired"));
     throw new ApiError(
       response.status,
@@ -68,12 +72,4 @@ export async function request<T = Record<string, unknown>>(
   return body as T;
 }
 
-export interface User {
-  id: number;
-  name: string;
-  email: string;
-  email_verified_at: string | null;
-  two_factor_enabled: boolean;
-  two_factor_pending: boolean;
-  providers?: string[];
-}
+export type { AccountUser as User } from "@motominator/client";

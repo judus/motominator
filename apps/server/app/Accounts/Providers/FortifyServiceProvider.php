@@ -1,0 +1,113 @@
+<?php
+
+namespace App\Accounts\Providers;
+
+use App\Accounts\Actions\Fortify\CreateNewUser;
+use App\Accounts\Actions\Fortify\ResetUserPassword;
+use App\Accounts\Actions\Fortify\UpdateUserPassword;
+use App\Accounts\Actions\Fortify\UpdateUserProfileInformation;
+use App\Accounts\Exceptions\AccountsAuthenticationException;
+use App\Accounts\Http\Responses\InvalidRecoveryResponse;
+use App\Accounts\Http\Responses\RecoveryLinkResponse;
+use App\Models\User;
+use Illuminate\Auth\Notifications\ResetPassword;
+use Illuminate\Auth\Notifications\VerifyEmail;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\URL;
+use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Str;
+use Laravel\Fortify\Actions\RedirectIfTwoFactorAuthenticatable;
+use Laravel\Fortify\Contracts\FailedPasswordResetLinkRequestResponse;
+use Laravel\Fortify\Contracts\FailedPasswordResetResponse;
+use Laravel\Fortify\Contracts\SuccessfulPasswordResetLinkRequestResponse;
+use Laravel\Fortify\Fortify;
+
+class FortifyServiceProvider extends ServiceProvider
+{
+    /**
+     * Register any application services.
+     */
+    public function register(): void
+    {
+        $this->app->bind(FailedPasswordResetResponse::class, InvalidRecoveryResponse::class);
+        $this->app->bind(FailedPasswordResetLinkRequestResponse::class, RecoveryLinkResponse::class);
+        $this->app->bind(SuccessfulPasswordResetLinkRequestResponse::class, RecoveryLinkResponse::class);
+    }
+
+    /**
+     * Bootstrap any application services.
+     */
+    public function boot(): void
+    {
+        VerifyEmail::createUrlUsing(function (User $user): string {
+            $url = URL::temporarySignedRoute('verification.verify', now()->addMinutes(60), [
+                'id' => $user->getKey(),
+                'hash' => sha1(
+                    $user->getEmailForVerification()
+                ),
+            ]);
+
+            return rtrim(
+                Config::string('fortify.frontend_url'),
+                '/'
+            ) . '/verify-email?' . http_build_query(
+                ['url' => $url]
+            );
+        });
+
+        ResetPassword::createUrlUsing(function (mixed $user, string $token): string {
+            if (! $user instanceof User) {
+                throw AccountsAuthenticationException::unexpectedUser();
+            }
+            return rtrim(
+                Config::string('fortify.frontend_url'),
+                '/'
+            ) . '/reset-password?' . http_build_query(
+                [
+                    'token' => $token,
+                    'email' => $user->getEmailForPasswordReset(),
+                ]
+            );
+        });
+
+        Fortify::createUsersUsing(CreateNewUser::class);
+        Fortify::updateUserProfileInformationUsing(UpdateUserProfileInformation::class);
+        Fortify::updateUserPasswordsUsing(UpdateUserPassword::class);
+        Fortify::resetUserPasswordsUsing(ResetUserPassword::class);
+        Fortify::redirectUserForTwoFactorAuthenticationUsing(RedirectIfTwoFactorAuthenticatable::class);
+
+        RateLimiter::for('login', function (Request $request) {
+            $throttleKey = Str::transliterate(
+                Str::lower($request->string(Fortify::username())->toString()) . '|' . $request->ip()
+            );
+
+            return Limit::perMinute(5)->by($throttleKey);
+        });
+
+        RateLimiter::for('mobile-login', fn (Request $request): array => [
+            Limit::perMinute(20)->by(
+                'mobile-ip:' . $request->ip()
+            ),
+            Limit::perMinute(5)->by(
+                'mobile-user:' . Str::lower(
+                    $request->string('email')->toString()
+                ) . '|' . $request->ip()
+            ),
+        ]);
+
+        RateLimiter::for('two-factor', function (Request $request) {
+            return Limit::perMinute(5)->by($request->session()->get('login.id'));
+        });
+
+        RateLimiter::for('passkeys', function (Request $request) {
+            $credentialId = $request->string('credential.id')->toString();
+
+            return Limit::perMinute(10)->by(
+                ($credentialId ?: $request->session()->getId()) . '|' . $request->ip()
+            );
+        });
+    }
+}

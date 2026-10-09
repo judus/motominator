@@ -33,6 +33,7 @@ return [
     'connections' => [
 
         'sqlite' => [
+            'mask_bindings_in_exception_messages' => true,
             'driver' => 'sqlite',
             'url' => env('DB_URL'),
             'database' => env('DB_DATABASE', database_path('database.sqlite')),
@@ -45,6 +46,7 @@ return [
         ],
 
         'mysql' => [
+            'mask_bindings_in_exception_messages' => true,
             'driver' => 'mysql',
             'url' => env('DB_URL'),
             'host' => env('DB_HOST', '127.0.0.1'),
@@ -65,6 +67,7 @@ return [
         ],
 
         'mariadb' => [
+            'mask_bindings_in_exception_messages' => true,
             'driver' => 'mariadb',
             'url' => env('DB_URL'),
             'host' => env('DB_HOST', '127.0.0.1'),
@@ -85,6 +88,7 @@ return [
         ],
 
         'pgsql' => [
+            'mask_bindings_in_exception_messages' => true,
             'driver' => 'pgsql',
             'url' => env('DB_URL'),
             'host' => env('DB_HOST', '127.0.0.1'),
@@ -100,6 +104,7 @@ return [
         ],
 
         'sqlsrv' => [
+            'mask_bindings_in_exception_messages' => true,
             'driver' => 'sqlsrv',
             'url' => env('DB_URL'),
             'host' => env('DB_HOST', 'localhost'),
@@ -149,7 +154,7 @@ return [
 
         'options' => [
             'cluster' => env('REDIS_CLUSTER', 'redis'),
-            'prefix' => env('REDIS_PREFIX', Str::slug((string) env('APP_NAME', 'laravel')).'-database-'),
+            'prefix' => env('REDIS_PREFIX', Str::slug((string) env('APP_NAME', 'laravel')) . '-database-'),
             'persistent' => env('REDIS_PERSISTENT', false),
         ],
 

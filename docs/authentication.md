@@ -63,7 +63,12 @@ back requires first resolving accounts that still have null passwords.
 
 ## Native app
 
-Expo uses expiring Sanctum bearer tokens with the single `account:read` ability.
+Expo uses expiring Sanctum bearer tokens with `account:read`, `garage:read`,
+`garage:write`, `ai:read` and `ai:write` abilities. Garage writes and AI key
+saving/connection tests additionally require a verified email. AI key removal
+remains available without verification.
+Existing device tokens retain their original abilities; sign out and sign in again
+to obtain newly added garage and AI permissions.
 `POST /api/v1/auth/tokens` checks credentials and any confirmed two-factor secret
 before issuance, including one-use recovery codes. Tokens have a device name and
 explicit expiry (`AUTH_DEVICE_TOKEN_TTL`, default 43,200 minutes / 30 days).

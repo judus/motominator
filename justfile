@@ -41,6 +41,10 @@ status:
 logs *args:
     cd apps/server && ./vendor/bin/sail logs --follow "$@"
 
+# Follow structured Laravel application logs.
+app-logs *args:
+    just artisan pail "$@"
+
 # Forward arbitrary arguments to Sail (for example: just sail exec mysql mysql --version).
 sail *args:
     cd apps/server && ./vendor/bin/sail "$@"
@@ -88,7 +92,17 @@ check:
     npm run lint
     npm run typecheck
 
-# Run Larastan through PHPStan.
+# Refresh local facade metadata and tracked model PHPDoc after migrations.
+ide-helpers:
+    cd apps/server && ./vendor/bin/sail composer ide:helpers
+    cd apps/server && ./vendor/bin/sail composer ide:models
+    cd apps/server && ./vendor/bin/sail composer format -- app/Models
+
+# Check PSR-12 and focused Slevomat rules.
+style-check:
+    cd apps/server && ./vendor/bin/sail composer style:check
+
+# Run Larastan through PHPStan at its maximum level.
 analyse:
     cd apps/server && ./vendor/bin/sail composer analyse
 

@@ -1,27 +1,32 @@
 import { defineConfig } from "@playwright/test";
 
+const apiPort = process.env.E2E_API_PORT ?? "8001";
+const webPort = process.env.E2E_WEB_PORT ?? "5179";
+const apiUrl = `http://localhost:${apiPort}`;
+const webUrl = `http://localhost:${webPort}`;
+
 export default defineConfig({
   testDir: "./e2e",
   workers: 1,
   use: {
-    baseURL: "http://localhost:5179",
+    baseURL: webUrl,
     browserName: "chromium",
     ...(process.env.CI ? {} : { channel: "chrome" }),
     trace: "retain-on-failure",
   },
   webServer: [
     {
-      command:
-        process.env.E2E_SERVER_COMMAND ??
-        "cd ../server && ./vendor/bin/sail -f compose.yaml run --rm --no-deps -p 8001:8080 -e APP_ENV=e2e -e DB_DATABASE=testing -e APP_URL=http://localhost:8001 -e FRONTEND_URL=http://localhost:5179 -e CORS_ALLOWED_ORIGINS=http://localhost:5179 -e SANCTUM_STATEFUL_DOMAINS=localhost:5179 -e AUTH_REGISTRATION_ENABLED=true -e MAIL_MAILER=array laravel.test php artisan serve --host=0.0.0.0 --port=8080 --no-reload",
-      url: "http://localhost:8001/up",
+      command: process.env.E2E_SERVER_COMMAND ?? "node scripts/e2e-server.mjs",
+      env: { E2E_API_PORT: apiPort, E2E_WEB_PORT: webPort },
+      url: `${apiUrl}/up`,
       timeout: 60000,
+      gracefulShutdown: { signal: "SIGTERM", timeout: 15000 },
       reuseExistingServer: false,
     },
     {
-      command: "npm run dev -- --host localhost --port 5179 --strictPort",
-      url: "http://localhost:5179",
-      env: { VITE_API_BASE_URL: "http://localhost:8001" },
+      command: `npm run dev -- --host localhost --port ${webPort} --strictPort`,
+      url: webUrl,
+      env: { VITE_API_BASE_URL: apiUrl },
       reuseExistingServer: false,
     },
   ],

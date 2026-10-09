@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "./test/render";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import { ApiError, request } from "./api";
@@ -24,6 +24,8 @@ beforeEach(() => {
 function backend(twoFactor = false) {
   let authenticated = false;
   vi.mocked(request).mockImplementation(async (path) => {
+    if (path === "/api/v1/ai/settings")
+      return { data: null, providers: [{ id: "openai", label: "OpenAI" }] };
     if (path === "/api/v1/auth/config")
       return { registration_enabled: false, providers: [] };
     if (path === "/api/v1/user") {
@@ -51,10 +53,10 @@ describe("browser authentication", () => {
     backend();
     render(<App />);
     await screen.findByRole("heading", { name: "Sign in" });
-    fireEvent.change(screen.getByLabelText("Email"), {
+    fireEvent.change(screen.getByLabelText(/^Email\s*\*?$/), {
       target: { value: user.email },
     });
-    fireEvent.change(screen.getByLabelText("Password"), {
+    fireEvent.change(screen.getByLabelText(/^Password\s*\*?$/), {
       target: { value: "password" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
@@ -76,7 +78,7 @@ describe("browser authentication", () => {
       await screen.findByRole("heading", { name: "Two-factor authentication" }),
     ).toBeInTheDocument();
     expect(screen.queryByText("Welcome, Rider")).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Or recovery code"), {
+    fireEvent.change(screen.getByLabelText(/^Or recovery code\s*\*?$/), {
       target: { value: "recovery-code" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
@@ -114,7 +116,7 @@ it("requests recovery without revealing whether the account exists", async () =>
   backend();
   render(<App />);
   await screen.findByRole("heading", { name: "Forgot password?" });
-  fireEvent.change(screen.getByLabelText("Email"), {
+  fireEvent.change(screen.getByLabelText(/^Email\s*\*?$/), {
     target: { value: user.email },
   });
   fireEvent.click(screen.getByRole("button", { name: "Send reset link" }));
@@ -136,10 +138,10 @@ it("passes the reset link token and email to Fortify", async () => {
   backend();
   render(<App />);
   await screen.findByRole("heading", { name: "Reset password" });
-  fireEvent.change(screen.getByLabelText("Password"), {
+  fireEvent.change(screen.getByLabelText(/^Password\s*\*?$/), {
     target: { value: "replacement-password" },
   });
-  fireEvent.change(screen.getByLabelText("Confirm password"), {
+  fireEvent.change(screen.getByLabelText(/^Confirm password\s*\*?$/), {
     target: { value: "replacement-password" },
   });
   fireEvent.click(screen.getByRole("button", { name: "Reset password" }));
@@ -160,12 +162,14 @@ it("updates the profile and resends verification", async () => {
     screen.getByRole("button", { name: "Sign in" }).closest("form")!,
   );
   await screen.findByText("Welcome, Rider");
-  fireEvent.change(screen.getByLabelText("Name"), {
+  fireEvent.click(screen.getByRole("link", { name: "Open account" }));
+  fireEvent.click(screen.getByRole("link", { name: "Profile" }));
+  fireEvent.change(screen.getByLabelText(/^Name\s*\*?$/), {
     target: { value: "Updated Rider" },
   });
   fireEvent.click(screen.getByRole("button", { name: "Save profile" }));
   await screen.findByText("Account updated.");
-  expect(request).toHaveBeenCalledWith("/user/profile-information", "PUT", {
+  expect(request).toHaveBeenCalledWith("/api/v1/account/profile", "PUT", {
     name: "Updated Rider",
     email: user.email,
   });
@@ -175,4 +179,99 @@ it("updates the profile and resends verification", async () => {
   expect(
     await screen.findByText("Verification email sent."),
   ).toBeInTheDocument();
+});
+
+it("ignores an initial account response after session expiry", async () => {
+  let resolve!: (value: unknown) => void;
+  vi.mocked(request).mockImplementation(async (path) => {
+    if (path === "/api/v1/auth/config")
+      return { registration_enabled: false, providers: [] };
+    return new Promise((done) => {
+      resolve = done;
+    });
+  });
+  render(<App />);
+  await act(async () => {
+    window.dispatchEvent(new Event("auth-expired"));
+  });
+  await act(async () => {
+    resolve(user);
+  });
+  expect(screen.getByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+  expect(screen.queryByText("Welcome, Rider")).not.toBeInTheDocument();
+});
+
+it.each(["logout", "expiry"])(
+  "ignores an obsolete account refresh after %s",
+  async (outcome) => {
+    window.history.replaceState({}, "", "/account/profile");
+    let resolve!: (value: unknown) => void;
+    let reads = 0;
+    vi.mocked(request).mockImplementation(async (path) => {
+      if (path === "/api/v1/auth/config")
+        return { registration_enabled: false, providers: [] };
+      if (path === "/api/v1/user") {
+        if (++reads === 1) return user;
+        return new Promise((done) => {
+          resolve = done;
+        });
+      }
+      return {};
+    });
+    render(<App />);
+    await screen.findByRole("button", { name: "Save profile" });
+    fireEvent.click(screen.getByRole("button", { name: "Save profile" }));
+    while (!resolve)
+      await act(async () => {
+        await Promise.resolve();
+      });
+    if (outcome === "logout")
+      fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+    else fireEvent(window, new Event("auth-expired"));
+    await screen.findByRole("heading", { name: "Sign in" });
+    await act(async () => {
+      resolve(user);
+    });
+    expect(
+      screen.getByRole("heading", { name: "Sign in" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Save profile" }),
+    ).not.toBeInTheDocument();
+  },
+);
+
+it("keeps a replacement account when a previous account refresh finishes", async () => {
+  window.history.replaceState({}, "", "/account/profile");
+  const replacement = { ...user, id: 2, name: "Replacement rider" };
+  let finish!: (value: unknown) => void;
+  let reads = 0;
+  vi.mocked(request).mockImplementation(async (path) => {
+    if (path === "/api/v1/auth/config")
+      return { registration_enabled: false, providers: [] };
+    if (path === "/api/v1/user") {
+      if (++reads === 1) return user;
+      if (reads === 2)
+        return new Promise((resolve) => {
+          finish = resolve;
+        });
+      return replacement;
+    }
+    return {};
+  });
+  render(<App />);
+  await screen.findByRole("button", { name: "Save profile" });
+  fireEvent.click(screen.getByRole("button", { name: "Save profile" }));
+  await waitFor(() => expect(finish).toBeDefined());
+  fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+  await screen.findByRole("heading", { name: "Sign in" });
+  fireEvent.submit(
+    screen.getByRole("button", { name: "Sign in" }).closest("form")!,
+  );
+  await screen.findByText("Welcome, Replacement rider");
+  await act(async () => {
+    finish(user);
+  });
+  expect(screen.getByText("Welcome, Replacement rider")).toBeInTheDocument();
+  expect(screen.queryByText("Welcome, Rider")).not.toBeInTheDocument();
 });

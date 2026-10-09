@@ -3,6 +3,26 @@
   "plugins": ["react", "typescript", "oxc"],
   "rules": {
     "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
+    "react/only-export-components": [
+      "warn",
+      {
+        "allowConstantExport": true
+      }
+    ],
+    "no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          {
+            "regex": "^@motominator/(mobile|server)(/|$)|(^|/)(mobile|server)(/|$)",
+            "message": "Do not import another app. Move concrete common client behavior into @motominator/client."
+          },
+          {
+            "regex": "^@motominator/client/(src|dist|react/)|(^|/)packages/client(/|$)",
+            "message": "Import the public @motominator/client or @motominator/client/react entry instead of package internals."
+          }
+        ]
+      }
+    ]
   }
 }

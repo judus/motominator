@@ -1,59 +1,70 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, within } from "./test/render";
 import App from "./App";
+import { ApiError, request } from "./api";
 
-describe("server connection", () => {
-  it("connects to a valid Motominator server", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ name: "Motominator", status: "ok" }),
-    });
-    vi.stubGlobal("fetch", fetchMock);
-    render(<App />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Check server" }));
-
-    expect(
-      await screen.findByText("Connected to Motominator."),
-    ).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringMatching(/\/api\/v1\/status$/),
-      { headers: { Accept: "application/json" } },
-    );
-    expect(screen.getByRole("button", { name: "Check server" })).toBeEnabled();
+vi.mock("./api", async (original) => ({
+  ...(await original<typeof import("./api")>()),
+  request: vi.fn(),
+}));
+beforeEach(() => {
+  window.history.replaceState({}, "", "/garage");
+  vi.mocked(request).mockReset();
+});
+it("shows the authenticated navigation and removes scaffold controls", async () => {
+  vi.mocked(request).mockImplementation(async (path) => {
+    if (path === "/api/v1/user")
+      return { id: 1, name: "Rider", email_verified_at: "2026-10-08" };
+    if (path === "/api/v1/auth/config")
+      return { registration_enabled: true, providers: [] };
+    return { data: [], meta: { current_page: 1, last_page: 1 } };
   });
-
-  it.each([
-    [{ ok: false, status: 503 }, "Server returned HTTP 503."],
-    [
-      { ok: true, json: async () => ({ name: "Other", status: "ok" }) },
-      "Unexpected server response.",
-    ],
-  ])(
-    "shows an unsuccessful response and allows retry",
-    async (response, message) => {
-      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response));
-      render(<App />);
-
-      fireEvent.click(screen.getByRole("button", { name: "Check server" }));
-
-      expect(await screen.findByText(message)).toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: "Check server" }),
-      ).toBeEnabled();
-    },
+  render(<App />);
+  await screen.findByRole("heading", { name: "Your garage" });
+  const nav = within(
+    screen.getByRole("navigation", { name: "Main navigation" }),
   );
-
-  it("shows network failures and allows retry", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockRejectedValue(new Error("Network unavailable.")),
-    );
-    render(<App />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Check server" }));
-
-    expect(await screen.findByText("Network unavailable.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Check server" })).toBeEnabled();
+  expect(nav.getByRole("link", { name: "Garage" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  expect(nav.getByRole("link", { name: "Account" })).toHaveAttribute(
+    "href",
+    "/account",
+  );
+  expect(nav.getByRole("button", { name: "Sign out" })).toBeInTheDocument();
+  expect(nav.queryByRole("link", { name: "Sign in" })).not.toBeInTheDocument();
+  expect(
+    nav.queryByRole("link", { name: "Create account" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Check server" }),
+  ).not.toBeInTheDocument();
+});
+it("keeps a garage destination after signing in there", async () => {
+  let authenticated = false;
+  vi.mocked(request).mockImplementation(async (path) => {
+    if (path === "/api/v1/user") {
+      if (!authenticated) throw new ApiError(401);
+      return { id: 1, name: "Rider", email_verified_at: "2026-10-08" };
+    }
+    if (path === "/api/v1/auth/config")
+      return { registration_enabled: false, providers: [] };
+    if (path === "/login") {
+      authenticated = true;
+      return {};
+    }
+    return { data: [], meta: { current_page: 1, last_page: 1 } };
   });
+  render(<App />);
+  await screen.findByRole("heading", { name: "Sign in" });
+  fireEvent.submit(
+    screen.getByRole("button", { name: "Sign in" }).closest("form")!,
+  );
+  expect(
+    await screen.findByRole("heading", { name: "Your garage" }),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByRole("heading", { name: "Account settings" }),
+  ).not.toBeInTheDocument();
 });

@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Schema;
 use Laravel\Ai\Migrations\AiMigration;
 
@@ -11,8 +12,14 @@ return new class extends AiMigration
      */
     public function up(): void
     {
-        $conversationsTable = config('ai.conversations.tables.conversations', 'agent_conversations');
-        $messagesTable = config('ai.conversations.tables.messages', 'agent_conversation_messages');
+        $conversationsTable = Config::string(
+            'ai.conversations.tables.conversations',
+            'agent_conversations'
+        );
+        $messagesTable = Config::string(
+            'ai.conversations.tables.messages',
+            'agent_conversation_messages'
+        );
 
         Schema::create($conversationsTable, function (Blueprint $table) {
             $table->string('id', 36)->primary();
@@ -39,7 +46,10 @@ return new class extends AiMigration
             $table->string('status', 25);
             $table->timestamps();
 
-            $table->index(['conversation_id', 'participant_type', 'participant_id', 'updated_at'], 'conversation_index');
+            $table->index(
+                ['conversation_id', 'participant_type', 'participant_id', 'updated_at'],
+                'conversation_index'
+            );
             $table->index(['participant_type', 'participant_id', 'agent'], 'participant_index');
         });
     }
@@ -49,7 +59,14 @@ return new class extends AiMigration
      */
     public function down(): void
     {
-        Schema::dropIfExists(config('ai.conversations.tables.messages', 'agent_conversation_messages'));
-        Schema::dropIfExists(config('ai.conversations.tables.conversations', 'agent_conversations'));
+        Schema::dropIfExists(
+            Config::string(
+                'ai.conversations.tables.messages',
+                'agent_conversation_messages'
+            )
+        );
+        Schema::dropIfExists(
+            Config::string('ai.conversations.tables.conversations', 'agent_conversations')
+        );
     }
 };

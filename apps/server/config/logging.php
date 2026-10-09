@@ -1,5 +1,6 @@
 <?php
 
+use App\Logging\ConfigureLogging;
 use Monolog\Handler\NullHandler;
 use Monolog\Handler\StreamHandler;
 use Monolog\Handler\SyslogUdpHandler;
@@ -19,6 +20,8 @@ return [
     */
 
     'default' => env('LOG_CHANNEL', 'stack'),
+    'json' => env('LOG_JSON', true),
+    'activity_retention_days' => env('ACTIVITY_RETENTION_DAYS', 365),
 
     /*
     |--------------------------------------------------------------------------
@@ -54,11 +57,13 @@ return [
 
         'stack' => [
             'driver' => 'stack',
-            'channels' => explode(',', (string) env('LOG_STACK', 'single')),
+            'channels' => explode(',', (string) env('LOG_STACK', 'daily')),
             'ignore_exceptions' => false,
+            'tap' => [ConfigureLogging::class],
         ],
 
         'single' => [
+            'tap' => [ConfigureLogging::class],
             'driver' => 'single',
             'path' => storage_path('logs/laravel.log'),
             'level' => env('LOG_LEVEL', 'debug'),
@@ -66,6 +71,7 @@ return [
         ],
 
         'daily' => [
+            'tap' => [ConfigureLogging::class],
             'driver' => 'daily',
             'path' => storage_path('logs/laravel.log'),
             'level' => env('LOG_LEVEL', 'debug'),
@@ -74,6 +80,7 @@ return [
         ],
 
         'monthly' => [
+            'tap' => [ConfigureLogging::class],
             'driver' => 'monthly',
             'path' => storage_path('logs/laravel.log'),
             'level' => env('LOG_LEVEL', 'debug'),
@@ -82,6 +89,7 @@ return [
         ],
 
         'slack' => [
+            'tap' => [ConfigureLogging::class],
             'driver' => 'slack',
             'url' => env('LOG_SLACK_WEBHOOK_URL'),
             'username' => env('LOG_SLACK_USERNAME', env('APP_NAME', 'Laravel')),
@@ -91,6 +99,7 @@ return [
         ],
 
         'papertrail' => [
+            'tap' => [ConfigureLogging::class],
             'driver' => 'monolog',
             'level' => env('LOG_LEVEL', 'debug'),
             'handler' => env('LOG_PAPERTRAIL_HANDLER', SyslogUdpHandler::class),
@@ -103,6 +112,7 @@ return [
         ],
 
         'stderr' => [
+            'tap' => [ConfigureLogging::class],
             'driver' => 'monolog',
             'level' => env('LOG_LEVEL', 'debug'),
             'handler' => StreamHandler::class,
@@ -114,6 +124,7 @@ return [
         ],
 
         'syslog' => [
+            'tap' => [ConfigureLogging::class],
             'driver' => 'syslog',
             'level' => env('LOG_LEVEL', 'debug'),
             'facility' => env('LOG_SYSLOG_FACILITY', LOG_USER),
@@ -121,6 +132,7 @@ return [
         ],
 
         'errorlog' => [
+            'tap' => [ConfigureLogging::class],
             'driver' => 'errorlog',
             'level' => env('LOG_LEVEL', 'debug'),
             'replace_placeholders' => true,

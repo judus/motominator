@@ -1,0 +1,49 @@
+{
+  "$schema": "../../node_modules/oxlint/configuration_schema.json",
+  "plugins": ["react", "typescript", "oxc"],
+  "rules": {
+    "react/rules-of-hooks": "error",
+    "react/exhaustive-deps": "error",
+    "no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          {
+            "regex": "(^|/)(apps|web|mobile|server)(/|$)|^@motominator/(web|mobile|server)(/|$)|^@/",
+            "message": "Shared client code must not import applications or their aliases. Inject the authenticated transport."
+          },
+          {
+            "regex": "^(expo([/-]|$)|@expo/|react-native([/-]|$)|react-dom(/|$)|tamagui(/|$)|@tamagui/|@mantine/|node:)",
+            "message": "Platform and UI dependencies belong in apps; this package owns shared client behavior."
+          },
+          {
+            "regex": "^react(/|$)|(^|/)react(/|$)",
+            "message": "Keep the base client React-free. React behavior belongs under src/react and the /react export."
+          }
+        ]
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["src/react/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "(^|/)(apps|web|mobile|server)(/|$)|^@motominator/(web|mobile|server)(/|$)|^@/",
+                "message": "Shared client code must not import applications or their aliases. Inject the authenticated transport."
+              },
+              {
+                "regex": "^(expo([/-]|$)|@expo/|react-native([/-]|$)|react-dom(/|$)|tamagui(/|$)|@tamagui/|@mantine/|node:)",
+                "message": "Platform and UI dependencies belong in apps; this package owns shared client behavior."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

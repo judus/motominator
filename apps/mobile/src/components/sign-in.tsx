@@ -1,8 +1,7 @@
-import { Button, Column, Host, Text, TextInput } from "@expo/ui";
+import { Button, Column, Field, Screen, Section, Text } from "@/ui/components";
 import * as Device from "expo-device";
 import { useEffect, useState } from "react";
-import { Platform, ScrollView } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Platform } from "react-native";
 import { api, socialSignIn, type Token } from "@/auth/client";
 import { useAuth } from "@/auth/auth-context";
 
@@ -39,107 +38,113 @@ export function SignIn() {
 
   if (Platform.OS === "web")
     return (
-      <Host matchContents>
+      <Column gap="$3">
         <Text>
           Use the Motominator browser application to sign in on the web.
         </Text>
-      </Host>
+      </Column>
     );
   return (
-    <SafeAreaView style={{ flex: 1 }}>
-      <ScrollView
-        contentContainerStyle={{ padding: 24 }}
-        keyboardShouldPersistTaps="handled"
-      >
-        <Host matchContents>
-          <Column spacing={16}>
-            <Text textStyle={{ fontSize: 28 }}>Motominator</Text>
-            <Text>Sign in to your account</Text>
-            <TextInput
-              placeholder="Email"
-              autoComplete="email"
-              autoCapitalize="none"
-              keyboardType="email-address"
-              onChangeText={setEmail}
-              testID="login-email"
-            />
-            <TextInput
-              placeholder="Password"
-              autoComplete="current-password"
-              secureTextEntry
-              onChangeText={setPassword}
-              testID="login-password"
-            />
-            {challenge && (
-              <>
-                <TextInput
-                  placeholder="Authenticator code"
-                  autoComplete="one-time-code"
-                  keyboardType="number-pad"
-                  onChangeText={setCode}
-                />
-                <TextInput
-                  placeholder="Or recovery code"
-                  autoCapitalize="none"
-                  onChangeText={setRecoveryCode}
-                />
-              </>
-            )}
+    <Screen standalone title="Motominator" subtitle="Sign in to your account">
+      <Section>
+        <Column gap="$3">
+          <Field
+            id="login-email"
+            label="Email"
+            placeholder="Email"
+            autoComplete="email"
+            autoCapitalize="none"
+            keyboardType="email-address"
+            onChangeText={setEmail}
+            testID="login-email"
+          />
+          <Field
+            id="login-password"
+            label="Password"
+            placeholder="Password"
+            autoComplete="current-password"
+            secureTextEntry
+            onChangeText={setPassword}
+            testID="login-password"
+          />
+          {challenge && (
+            <>
+              <Field
+                id="login-code"
+                label="Authenticator code"
+                placeholder="Authenticator code"
+                autoComplete="one-time-code"
+                keyboardType="number-pad"
+                onChangeText={setCode}
+              />
+              <Field
+                id="login-recovery"
+                label="Recovery code"
+                placeholder="Or recovery code"
+                autoCapitalize="none"
+                onChangeText={setRecoveryCode}
+              />
+            </>
+          )}
+          <Button
+            disabled={busy}
+            testID="login-submit"
+            onPress={() =>
+              void act(async () => {
+                const result = await api<Token & { two_factor?: boolean }>(
+                  "/api/v1/auth/tokens",
+                  "POST",
+                  {
+                    email,
+                    password,
+                    device_name: deviceName,
+                    code,
+                    recovery_code: recoveryCode,
+                  },
+                );
+                if (result.two_factor) {
+                  setChallenge(true);
+                  return;
+                }
+                await auth.accept(result);
+              })
+            }
+            label={
+              busy
+                ? "Signing in…"
+                : challenge
+                  ? "Verify and sign in"
+                  : "Sign in"
+            }
+          />
+          {providers.map((provider) => (
             <Button
+              intent="secondary"
+              key={provider}
               disabled={busy}
-              testID="login-submit"
               onPress={() =>
                 void act(async () => {
-                  const result = await api<Token & { two_factor?: boolean }>(
-                    "/api/v1/auth/tokens",
-                    "POST",
-                    {
-                      email,
-                      password,
-                      device_name: deviceName,
-                      code,
-                      recovery_code: recoveryCode,
-                    },
-                  );
-                  if (result.two_factor) {
-                    setChallenge(true);
-                    return;
-                  }
-                  await auth.accept(result);
+                  const token = await socialSignIn(provider, deviceName);
+                  if (token) await auth.accept(token);
+                  else setMessage("Sign-in cancelled.");
                 })
               }
-              label={
-                busy
-                  ? "Signing in…"
-                  : challenge
-                    ? "Verify and sign in"
-                    : "Sign in"
-              }
+              label={`Continue with ${provider === "github" ? "GitHub" : "Google"}`}
             />
-            {providers.map((provider) => (
+          ))}
+          {auth.error ? (
+            <>
+              <Text>{auth.error}</Text>
               <Button
-                key={provider}
-                disabled={busy}
-                onPress={() =>
-                  void act(async () => {
-                    const token = await socialSignIn(provider, deviceName);
-                    if (token) await auth.accept(token);
-                    else setMessage("Sign-in cancelled.");
-                  })
-                }
-                label={`Continue with ${provider === "github" ? "GitHub" : "Google"}`}
+                intent="secondary"
+                label="Retry"
+                onPress={() => void auth.refresh()}
               />
-            ))}
-            {auth.error ? (
-              <>
-                <Text>{auth.error}</Text>
-                <Button label="Retry" onPress={() => void auth.refresh()} />
-              </>
-            ) : null}
-            {message ? <Text>{message}</Text> : null}
-          </Column>
-        </Host>
-      </ScrollView>
-    </SafeAreaView>
+            </>
+          ) : null}
+          {message ? <Text>{message}</Text> : null}
+        </Column>
+      </Section>
+    </Screen>
   );
 }

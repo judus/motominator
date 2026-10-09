@@ -1,7 +1,14 @@
 <?php
 
-use App\Http\Controllers\DeviceTokenController;
-use App\Http\Controllers\NativeSocialAuthController;
+use App\Accounts\Http\Controllers\AccountController;
+use App\Accounts\Http\Controllers\AccountSettingsController;
+use App\Accounts\Http\Controllers\DeviceTokenController;
+use App\Accounts\Http\Controllers\NativeSocialAuthController;
+use App\Accounts\Http\Controllers\NativeSocialLinkController;
+use App\Ai\Http\Controllers\AiSettingsController;
+use App\Garage\Http\Controllers\InvoiceImportController;
+use App\Garage\Http\Controllers\MaintenanceRecordController;
+use App\Garage\Http\Controllers\MotorcycleController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -17,19 +24,103 @@ Route::get('/v1/status', fn (): array => [
 
 Route::get('/v1/auth/config', fn (): array => [
     'registration_enabled' => (bool) config('auth.registration_enabled'),
-    'providers' => collect(['google', 'github'])->filter(fn (string $provider): bool => filled(config("services.{$provider}.client_id")) && filled(config("services.{$provider}.client_secret")))->values()->all(),
+    'providers' => collect(['google', 'github'])->filter(
+        fn (string $provider): bool => filled(
+            config("services.{$provider}.client_id")
+        ) && filled(
+            config("services.{$provider}.client_secret")
+        )
+    )->values()->all(),
 ]);
 
-Route::get('/v1/user', function (Request $request): array {
-    $user = $request->user();
+Route::get('/v1/user', [AccountController::class, 'show'])->middleware(
+    ['auth:sanctum', 'abilities:account:read']
+)->name(
+    'api.v1.user'
+);
 
-    return [
-        'id' => $user->id,
-        'name' => $user->name,
-        'email' => $user->email,
-        'email_verified_at' => $user->email_verified_at,
-        'two_factor_enabled' => $user->hasEnabledTwoFactorAuthentication(),
-        'two_factor_pending' => filled($user->two_factor_secret) && ! $user->hasEnabledTwoFactorAuthentication(),
-        'providers' => $user->socialIdentities()->pluck('provider')->all(),
-    ];
-})->middleware(['auth:sanctum', 'abilities:account:read'])->name('api.v1.user');
+Route::prefix('v1')->name('api.v1.')->middleware('auth:sanctum')->group(function (): void {
+    Route::prefix('account')->name('account.')->group(function (): void {
+        Route::get('devices', [AccountSettingsController::class, 'devices'])->middleware('abilities:account:read');
+        Route::middleware(['abilities:account:write', 'throttle:10,1'])->group(function (): void {
+            Route::put('profile', [AccountSettingsController::class, 'profile']);
+            Route::put('password', [AccountSettingsController::class, 'password']);
+            Route::post('two-factor', [AccountSettingsController::class, 'twoFactor']);
+            Route::delete('devices/{token}', [AccountSettingsController::class, 'revokeDevice']);
+            Route::post('social/link', [NativeSocialLinkController::class, 'store']);
+            Route::post('social/link/complete', [NativeSocialLinkController::class, 'complete']);
+            Route::delete('social/{provider}', [AccountSettingsController::class, 'unlinkSocial']);
+        });
+        Route::post('verification', [AccountSettingsController::class, 'verification'])
+            ->middleware(['abilities:account:write', 'throttle:3,1']);
+    });
+    Route::prefix('motorcycles/{motorcycle}/invoice-imports')->name('invoice-imports.')->group(function (): void {
+        Route::get('/', [InvoiceImportController::class, 'index'])->middleware('abilities:garage:read')->name('index');
+        Route::get('/{invoiceImport}', [InvoiceImportController::class, 'show'])->middleware(
+            'abilities:garage:read'
+        )->name(
+            'show'
+        );
+        Route::get('/{invoiceImport}/download', [InvoiceImportController::class, 'download'])->middleware(
+            'abilities:garage:read'
+        )->name(
+            'download'
+        );
+        Route::post('/', [InvoiceImportController::class, 'store'])->middleware(
+            ['verified', 'abilities:garage:write', 'throttle:20,1']
+        )->name(
+            'store'
+        );
+        Route::post('/{invoiceImport}/extract', [InvoiceImportController::class, 'extract'])->middleware(
+            ['verified', 'abilities:garage:write,ai:write', 'throttle:3,1']
+        )->name(
+            'extract'
+        );
+        Route::put('/{invoiceImport}', [InvoiceImportController::class, 'update'])->middleware(
+            ['verified', 'abilities:garage:write']
+        )->name(
+            'update'
+        );
+        Route::post('/{invoiceImport}/confirm', [InvoiceImportController::class, 'confirm'])->middleware(
+            ['verified', 'abilities:garage:write']
+        )->name(
+            'confirm'
+        );
+    });
+    Route::get('ai/settings', [AiSettingsController::class, 'show'])->middleware('abilities:ai:read')->name(
+        'ai.settings.show'
+    );
+    Route::put('ai/settings', [AiSettingsController::class, 'update'])->middleware(
+        ['verified', 'abilities:ai:write', 'throttle:20,1']
+    )->name(
+        'ai.settings.update'
+    );
+    Route::delete('ai/settings', [AiSettingsController::class, 'destroy'])->middleware('abilities:ai:write')->name(
+        'ai.settings.destroy'
+    );
+    Route::post('ai/settings/test', [AiSettingsController::class, 'test'])->middleware(
+        ['verified', 'abilities:ai:write', 'throttle:3,1']
+    )->name(
+        'ai.settings.test'
+    );
+    Route::apiResource('motorcycles', MotorcycleController::class)->only(['index', 'show'])->middleware(
+        'abilities:garage:read'
+    );
+    Route::apiResource('motorcycles', MotorcycleController::class)->only(['store', 'update'])->middleware(
+        ['verified', 'abilities:garage:write']
+    );
+    Route::apiResource('motorcycles.maintenance-records', MaintenanceRecordController::class)->only(
+        ['index', 'show']
+    )->parameters(
+        ['maintenance-records' => 'maintenanceRecord']
+    )->scoped()->middleware(
+        'abilities:garage:read'
+    );
+    Route::apiResource('motorcycles.maintenance-records', MaintenanceRecordController::class)->only(
+        ['store', 'update']
+    )->parameters(
+        ['maintenance-records' => 'maintenanceRecord']
+    )->scoped()->middleware(
+        ['verified', 'abilities:garage:write']
+    );
+});

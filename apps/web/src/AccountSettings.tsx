@@ -1,323 +1,371 @@
-import { useState, type FormEvent } from "react";
+import {
+  Alert,
+  Button,
+  Fieldset,
+  NativeSelect,
+  Paper,
+  Stack,
+  Text,
+  TextInput,
+} from "@mantine/core";
+import { useState, type ReactNode } from "react";
+import { useAccountSettings } from "@motominator/client/react";
 import { apiBaseUrl, request, type User } from "./api";
+import { client } from "./client";
+
+function SettingsForm({
+  busy,
+  reset = true,
+  onSubmit,
+  children,
+}: {
+  busy: boolean;
+  reset?: boolean;
+  children: ReactNode;
+  onSubmit: (data: Record<string, string>) => Promise<boolean>;
+}) {
+  return (
+    <Paper
+      component="form"
+      withBorder
+      p="lg"
+      radius="md"
+      onSubmit={async (event) => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const data = Object.fromEntries(
+          [...new FormData(form)].filter(
+            (entry): entry is [string, string] => typeof entry[1] === "string",
+          ),
+        );
+        if ((await onSubmit(data)) && reset) form.reset();
+      }}
+    >
+      <Fieldset disabled={busy} variant="unstyled">
+        <Stack>{children}</Stack>
+      </Fieldset>
+    </Paper>
+  );
+}
 
 export function AccountSettings({
   user,
   refresh,
   providers,
+  section,
 }: {
   user: User;
   refresh: () => Promise<void>;
   providers: string[];
+  section: "profile" | "password" | "two-factor" | "social" | "devices";
 }) {
-  const [message, setMessage] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [secret, setSecret] = useState("");
-  const [codes, setCodes] = useState<string[]>([]);
-  const [devices, setDevices] = useState<
-    { id: number; name: string; expires_at: string | null }[]
-  >([]);
-
-  async function submit(
-    event: FormEvent<HTMLFormElement>,
-    action: (data: Record<string, string>) => Promise<void>,
-  ) {
-    event.preventDefault();
-    const data = Object.fromEntries(
-      new FormData(event.currentTarget),
-    ) as Record<string, string>;
-    setBusy(true);
-    setMessage("");
-    try {
-      await action(data);
-      await refresh();
-      setMessage("Account updated.");
-    } catch (error) {
-      setMessage(
-        error instanceof Error ? error.message : "Unable to update account.",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function confirmed(password: string, action: () => Promise<unknown>) {
-    await request("/user/confirm-password", "POST", { password });
-    await action();
-  }
-
+  const settings = useAccountSettings(client, refresh);
+  const [profileEmail, setProfileEmail] = useState(user.email);
+  const [profilePassword, setProfilePassword] = useState("");
+  const changingEmail =
+    profileEmail.trim().toLowerCase() !== user.email.toLowerCase();
+  const { busy, secret, codes, devices, message, error } = settings;
+  const availableProviders = [
+    ...new Set([...providers, ...(user.providers ?? [])]),
+  ];
   return (
-    <section aria-labelledby="settings-title">
-      <h2 id="settings-title">Account settings</h2>
-      <form
-        onSubmit={(event) =>
-          submit(event, async (data) => {
-            await request("/user/profile-information", "PUT", data);
-          })
-        }
-      >
-        <label>
-          Name
-          <input
+    <Stack
+      component="section"
+      aria-label="Account settings"
+      gap="lg"
+      maw={720}
+      w="100%"
+    >
+      {section === "profile" && (
+        <SettingsForm
+          busy={busy}
+          reset={false}
+          onSubmit={async (data) => {
+            const saved = await settings.profile({
+              name: data.name,
+              email: profileEmail,
+              ...(changingEmail ? { current_password: profilePassword } : {}),
+            });
+            if (saved) setProfilePassword("");
+            return saved;
+          }}
+        >
+          <TextInput
+            label="Name"
             name="name"
             autoComplete="name"
             defaultValue={user.name}
             required
           />
-        </label>
-        <label>
-          Email
-          <input
+          <TextInput
+            label="Email"
             name="email"
             type="email"
             autoComplete="email"
-            defaultValue={user.email}
+            value={profileEmail}
+            onChange={(event) => {
+              setProfileEmail(event.currentTarget.value);
+              setProfilePassword("");
+            }}
             required
           />
-        </label>
-        <button disabled={busy}>Save profile</button>
-      </form>
-      <form
-        onSubmit={(event) =>
-          submit(event, async (data) => {
-            await request("/user/password", "PUT", data);
-          })
-        }
-      >
-        <label>
-          Current password
-          <input
+          {changingEmail && (
+            <TextInput
+              label="Current password to change email"
+              name="current_password"
+              type="password"
+              autoComplete="current-password"
+              value={profilePassword}
+              onChange={(event) =>
+                setProfilePassword(event.currentTarget.value)
+              }
+              required
+            />
+          )}
+          <Text size="sm" c="dimmed">
+            Changing your email requires your current password and verifying the
+            new address.
+          </Text>
+          <Button type="submit" disabled={busy} w="fit-content">
+            Save profile
+          </Button>
+        </SettingsForm>
+      )}
+      {section === "password" && (
+        <SettingsForm
+          busy={busy}
+          onSubmit={(data) =>
+            settings.password({
+              current_password: data.current_password,
+              password: data.password,
+              password_confirmation: data.password_confirmation,
+            })
+          }
+        >
+          <TextInput
+            label="Current password"
             name="current_password"
             type="password"
             autoComplete="current-password"
             required
           />
-        </label>
-        <label>
-          New password
-          <input
+          <TextInput
+            label="New password"
             name="password"
             type="password"
             autoComplete="new-password"
             minLength={8}
             required
           />
-        </label>
-        <label>
-          Confirm new password
-          <input
+          <TextInput
+            label="Confirm new password"
             name="password_confirmation"
             type="password"
             autoComplete="new-password"
             required
           />
-        </label>
-        <button disabled={busy}>Change password</button>
-      </form>
-      <h3>Two-factor authentication</h3>
-      <p>
-        {user.two_factor_enabled
-          ? "Enabled"
-          : user.two_factor_pending
-            ? "Awaiting confirmation"
-            : "Disabled"}
-      </p>
-      <form
-        onSubmit={(event) =>
-          submit(event, async (data) =>
-            confirmed(data.password, async () => {
-              if (data.action === "enable") {
-                await request("/user/two-factor-authentication", "POST");
-                const result = await request<{ secretKey: string }>(
-                  "/user/two-factor-secret-key",
-                );
-                setSecret(result.secretKey);
-                setCodes(
-                  await request<string[]>("/user/two-factor-recovery-codes"),
-                );
-              } else if (data.action === "disable") {
-                await request("/user/two-factor-authentication", "DELETE");
-                setSecret("");
-                setCodes([]);
-              } else {
-                if (data.action === "regenerate")
-                  await request("/user/two-factor-recovery-codes", "POST");
-                setCodes(
-                  await request<string[]>("/user/two-factor-recovery-codes"),
-                );
-              }
-            }),
-          )
-        }
-      >
-        <label>
-          Confirm password
-          <input
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            required
-          />
-        </label>
-        <label>
-          Action
-          <select name="action">
-            {!user.two_factor_enabled && (
-              <option value="enable">Set up authenticator</option>
-            )}
-            {(user.two_factor_enabled || user.two_factor_pending) && (
-              <>
-                <option value="codes">Show recovery codes</option>
-                <option value="regenerate">Regenerate recovery codes</option>
-                <option value="disable">
-                  Disable two-factor authentication
-                </option>
-              </>
-            )}
-          </select>
-        </label>
-        <button disabled={busy}>Update two-factor authentication</button>
-      </form>
-      {secret && (
-        <p>
-          Add this secret to your authenticator: <code>{secret}</code>
-        </p>
+          <Text size="sm" c="dimmed">
+            All mobile devices will be signed out.
+          </Text>
+          <Button type="submit" disabled={busy} w="fit-content">
+            Change password
+          </Button>
+        </SettingsForm>
       )}
-      {user.two_factor_pending && (
-        <form
-          onSubmit={(event) =>
-            submit(event, async (data) =>
-              confirmed(data.password, async () => {
-                await request(
-                  "/user/confirmed-two-factor-authentication",
-                  "POST",
-                  { code: data.code },
-                );
-                setSecret("");
-              }),
-            )
-          }
-        >
-          <label>
-            Password
-            <input
+      {section === "two-factor" && (
+        <>
+          <Text>
+            {user.two_factor_enabled
+              ? "Enabled"
+              : user.two_factor_pending
+                ? "Awaiting confirmation"
+                : "Disabled"}
+          </Text>
+          <SettingsForm
+            busy={busy}
+            onSubmit={(data) =>
+              settings.twoFactor(
+                data.password,
+                data.action === "disable" ||
+                  data.action === "regenerate" ||
+                  data.action === "codes"
+                  ? data.action
+                  : "enable",
+              )
+            }
+          >
+            <TextInput
+              label="Confirm password"
               name="password"
               type="password"
               autoComplete="current-password"
               required
             />
-          </label>
-          <label>
-            Authenticator code
-            <input
-              name="code"
-              autoComplete="one-time-code"
-              inputMode="numeric"
-              required
-            />
-          </label>
-          <button disabled={busy}>Confirm authenticator</button>
-        </form>
-      )}
-      {codes.length > 0 && (
-        <div>
-          <p>Store these recovery codes securely. Each can be used once.</p>
-          <ul>
-            {codes.map((code) => (
-              <li key={code}>
-                <code>{code}</code>
-              </li>
-            ))}
-          </ul>
-          <button onClick={() => setCodes([])}>Hide recovery codes</button>
-        </div>
-      )}
-      {providers.length > 0 && (
-        <>
-          <h3>Social accounts</h3>
-          <form
-            onSubmit={(event) =>
-              submit(event, async (data) =>
-                confirmed(data.password, async () => {
-                  if (data.action === "unlink") {
-                    await request(`/auth/${data.provider}`, "DELETE");
-                  } else
-                    window.location.assign(
-                      `${apiBaseUrl}/auth/${data.provider}/redirect?intent=link`,
-                    );
-                }),
-              )
-            }
-          >
-            <p>Linked: {user.providers?.join(", ") || "none"}</p>
-            <label>
-              Provider
-              <select name="provider">
-                {providers.map((provider) => (
-                  <option key={provider} value={provider}>
-                    {provider === "github" ? "GitHub" : "Google"}
+            <NativeSelect label="Action" name="action">
+              {!user.two_factor_enabled && (
+                <option value="enable">Set up authenticator</option>
+              )}
+              {(user.two_factor_enabled || user.two_factor_pending) && (
+                <>
+                  <option value="codes">Show recovery codes</option>
+                  <option value="regenerate">Regenerate recovery codes</option>
+                  <option value="disable">
+                    Disable two-factor authentication
                   </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Action
-              <select name="action">
-                <option value="link">Link account</option>
-                <option value="unlink">Unlink account</option>
-              </select>
-            </label>
-            <label>
-              Password
-              <input
+                </>
+              )}
+            </NativeSelect>
+            <Button type="submit" disabled={busy} w="fit-content">
+              Update two-factor authentication
+            </Button>
+          </SettingsForm>
+          {secret && (
+            <p>
+              Add this secret to your authenticator: <code>{secret}</code>
+            </p>
+          )}
+          {user.two_factor_pending && (
+            <SettingsForm
+              busy={busy}
+              onSubmit={(data) =>
+                settings.twoFactor(data.password, "confirm", data.code)
+              }
+            >
+              <TextInput
+                label="Password"
                 name="password"
                 type="password"
                 autoComplete="current-password"
                 required
               />
-            </label>
-            <button disabled={busy}>Update social account</button>
-          </form>
+              <TextInput
+                label="Authenticator code"
+                name="code"
+                autoComplete="one-time-code"
+                inputMode="numeric"
+                required
+              />
+              <Button type="submit" disabled={busy} w="fit-content">
+                Confirm authenticator
+              </Button>
+            </SettingsForm>
+          )}
+          {codes.length > 0 && (
+            <div>
+              <p>Store these recovery codes securely. Each can be used once.</p>
+              <ul>
+                {codes.map((code) => (
+                  <li key={code}>
+                    <code>{code}</code>
+                  </li>
+                ))}
+              </ul>
+              <Button variant="outline" onClick={settings.hideRecovery}>
+                Hide recovery codes
+              </Button>
+            </div>
+          )}
         </>
       )}
-      <h3>Signed-in devices</h3>
-      <form
-        onSubmit={(event) =>
-          submit(event, async () => {
-            setDevices(await request("/user/devices"));
-          })
-        }
-      >
-        <button disabled={busy}>Load devices</button>
-      </form>
-      {devices.map((device) => (
-        <form
-          key={device.id}
-          onSubmit={(event) =>
-            submit(event, async (data) =>
-              confirmed(data.password, async () => {
-                await request(`/user/devices/${device.id}`, "DELETE");
-                setDevices(await request("/user/devices"));
-              }),
-            )
-          }
-        >
-          <p>
-            {device.name} · expires {device.expires_at ?? "unknown"}
-          </p>
-          <label>
-            Password to revoke device
-            <input
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              required
-            />
-          </label>
-          <button disabled={busy}>Revoke {device.name}</button>
-        </form>
-      ))}
-      <p role="status">{message}</p>
-    </section>
+      {section === "social" && (
+        <>
+          <Text>Linked: {user.providers?.join(", ") || "none"}</Text>
+          {availableProviders.length === 0 ? (
+            <Text>No social sign-in providers are configured yet.</Text>
+          ) : (
+            <SettingsForm
+              busy={busy}
+              onSubmit={(data) =>
+                data.action === "unlink"
+                  ? settings.unlinkSocial(data.provider, data.password)
+                  : settings.perform(async () => {
+                      await request("/user/confirm-password", "POST", {
+                        password: data.password,
+                      });
+                      window.location.assign(
+                        `${apiBaseUrl}/auth/${data.provider}/redirect?intent=link`,
+                      );
+                    })
+              }
+            >
+              <NativeSelect label="Provider" name="provider">
+                {availableProviders.map((provider) => (
+                  <option key={provider} value={provider}>
+                    {provider === "github" ? "GitHub" : "Google"}
+                  </option>
+                ))}
+              </NativeSelect>
+              <NativeSelect label="Action" name="action">
+                <option value="link">Link account</option>
+                <option value="unlink">Unlink account</option>
+              </NativeSelect>
+              <TextInput
+                label="Password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                required
+              />
+              <Button type="submit" disabled={busy} w="fit-content">
+                Update social account
+              </Button>
+            </SettingsForm>
+          )}
+        </>
+      )}
+      {section === "devices" && (
+        <>
+          <Text size="sm" c="dimmed">
+            Mobile API tokens; browser sessions are managed separately.
+          </Text>
+          <Button
+            variant="outline"
+            disabled={busy}
+            w="fit-content"
+            onClick={() => void settings.loadDevices()}
+          >
+            Load devices
+          </Button>
+          {message === "Device list updated." && devices.length === 0 && (
+            <Text>No signed-in mobile devices.</Text>
+          )}
+          {devices.map((device) => (
+            <SettingsForm
+              key={device.id}
+              busy={busy}
+              onSubmit={(data) =>
+                settings.revokeDevice(device.id, data.password)
+              }
+            >
+              <Text>
+                {device.name} · expires {device.expires_at ?? "unknown"}
+              </Text>
+              <TextInput
+                label="Password to revoke device"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                required
+              />
+              <Button
+                color="red"
+                variant="outline"
+                type="submit"
+                disabled={busy}
+                w="fit-content"
+              >
+                Revoke {device.name}
+              </Button>
+            </SettingsForm>
+          ))}
+        </>
+      )}
+      {message && <Alert role="status">{message}</Alert>}
+      {error && (
+        <Alert role="alert" color="red">
+          {error}
+        </Alert>
+      )}
+    </Stack>
   );
 }

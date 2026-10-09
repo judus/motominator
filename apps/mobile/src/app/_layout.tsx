@@ -1,29 +1,61 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useColorScheme } from "react-native";
-
-import { AnimatedSplashOverlay } from "@/components/animated-icon";
-import AppTabs from "@/components/app-tabs";
+import { Platform, useColorScheme } from "react-native";
+import { useEffect } from "react";
+import { TamaguiProvider, useTheme } from "tamagui";
+import config from "../../tamagui.config";
+import { Stack } from "expo-router/stack";
 import { AuthProvider, useAuth } from "@/auth/auth-context";
+import { cleanupInvoiceCache } from "@/invoices/files";
 import { SignIn } from "@/components/sign-in";
 
 SplashScreen.preventAutoHideAsync();
-
-export default function TabLayout() {
+export default function RootLayout() {
+  const scheme = useColorScheme();
+  useEffect(() => {
+    if (Platform.OS !== "web") cleanupInvoiceCache();
+  }, []);
   return (
-    <AuthProvider>
-      <AuthenticatedLayout />
-    </AuthProvider>
+    <TamaguiProvider
+      config={config}
+      defaultTheme={scheme === "dark" ? "dark" : "light"}
+    >
+      <AuthProvider>
+        <AuthenticatedLayout />
+      </AuthProvider>
+    </TamaguiProvider>
   );
 }
-
 function AuthenticatedLayout() {
   const { user, ready } = useAuth();
-  const colorScheme = useColorScheme();
+  const scheme = useColorScheme();
+  const theme = useTheme();
+  const navigationTheme = scheme === "dark" ? DarkTheme : DefaultTheme;
+  useEffect(() => {
+    if (ready) void SplashScreen.hideAsync();
+  }, [ready]);
   return (
-    <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-      <AnimatedSplashOverlay />
-      {ready ? user ? <AppTabs /> : <SignIn /> : null}
+    <ThemeProvider
+      value={{
+        ...navigationTheme,
+        colors: {
+          ...navigationTheme.colors,
+          background: theme.background.val,
+          card: theme.background.val,
+          text: theme.color.val,
+        },
+      }}
+    >
+      {ready ? (
+        user ? (
+          <Stack key={user.id} screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="auth-return" />
+          </Stack>
+        ) : (
+          <SignIn />
+        )
+      ) : null}
     </ThemeProvider>
   );
 }
