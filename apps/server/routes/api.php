@@ -11,6 +11,7 @@ use App\Garage\Http\Controllers\MaintenanceRecordController;
 use App\Garage\Http\Controllers\MotorcycleController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Ai\Http\Controllers\CopilotController;
 
 Route::post('/v1/auth/native', [NativeSocialAuthController::class, 'store'])->middleware('throttle:10,1');
 Route::post('/v1/auth/native/exchange', [NativeSocialAuthController::class, 'exchange'])->middleware('throttle:20,1');
@@ -86,6 +87,18 @@ Route::prefix('v1')->name('api.v1.')->middleware('auth:sanctum')->group(function
         )->name(
             'confirm'
         );
+    });
+    Route::prefix('ai/conversations')->name('ai.conversations.')->group(function (): void {
+        Route::get('/', [CopilotController::class, 'index'])->middleware('abilities:ai:read')->name('index');
+        Route::get('/{conversation}/messages', [CopilotController::class, 'messages'])
+            ->middleware('abilities:ai:read')->whereUuid('conversation')->name('messages');
+        Route::middleware(['verified', 'abilities:ai:write', 'throttle:10,1'])->group(function (): void {
+            Route::post('/', [CopilotController::class, 'store'])->name('store');
+            Route::post('/{conversation}/messages', [CopilotController::class, 'reply'])
+                ->middleware('abilities:garage:read')->whereUuid('conversation')->name('reply');
+        });
+        Route::delete('/{conversation}', [CopilotController::class, 'destroy'])
+            ->middleware('abilities:ai:write')->whereUuid('conversation')->name('destroy');
     });
     Route::get('ai/settings', [AiSettingsController::class, 'show'])->middleware('abilities:ai:read')->name(
         'ai.settings.show'

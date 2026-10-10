@@ -15,6 +15,10 @@ export default function AppTabs() {
         <NativeTabs.Trigger.Label>Garage</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="motorcycle" md="garage" />
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="copilot">
+        <NativeTabs.Trigger.Label>Copilot</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="bubble.left.and.bubble.right" md="chat" />
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="account">
         <NativeTabs.Trigger.Label>Account</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="person.crop.circle" md="person" />

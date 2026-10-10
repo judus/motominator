@@ -20,6 +20,15 @@ export default function HomeScreen() {
           </Link>
         </Section>
         <Section flex={1}>
+          <H3>Copilot</H3>
+          <Text color="$color11">
+            Ask about your motorcycles and recorded history.
+          </Text>
+          <Link href="/copilot" asChild>
+            <Button intent="secondary" label="Open copilot" />
+          </Link>
+        </Section>
+        <Section flex={1}>
           <H3>Account</H3>
           <Text color="$color11">Your profile and preferences.</Text>
           <Link href="/account" asChild>

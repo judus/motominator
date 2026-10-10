@@ -7,6 +7,8 @@ import config from "../../tamagui.config";
 import { Stack } from "expo-router/stack";
 import { AuthProvider, useAuth } from "@/auth/auth-context";
 import { cleanupInvoiceCache } from "@/invoices/files";
+import { CopilotProvider } from "@motominator/client/react";
+import { useClient } from "@/client";
 import { SignIn } from "@/components/sign-in";
 
 SplashScreen.preventAutoHideAsync();
@@ -28,6 +30,7 @@ export default function RootLayout() {
 }
 function AuthenticatedLayout() {
   const { user, ready } = useAuth();
+  const client = useClient();
   const scheme = useColorScheme();
   const theme = useTheme();
   const navigationTheme = scheme === "dark" ? DarkTheme : DefaultTheme;
@@ -48,10 +51,12 @@ function AuthenticatedLayout() {
     >
       {ready ? (
         user ? (
-          <Stack key={user.id} screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="auth-return" />
-          </Stack>
+          <CopilotProvider key={user.id} client={client}>
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="auth-return" />
+            </Stack>
+          </CopilotProvider>
         ) : (
           <SignIn />
         )

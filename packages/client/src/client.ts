@@ -1,3 +1,4 @@
+import { copilotOperations, type StreamRequest } from "./copilot";
 import { accountOperations } from "./accounts";
 import type { InvoiceImport, InvoiceDraft } from "./invoices";
 import type {
@@ -17,7 +18,11 @@ export type Request = <T>(
 export const aiSettingsPath = "/api/v1/ai/settings";
 const motorcyclesPath = "/api/v1/motorcycles";
 export type Schedule = (callback: () => void, delay: number) => () => void;
-export function createClient(request: Request, schedule?: Schedule) {
+export function createClient(
+  request: Request,
+  schedule?: Schedule,
+  stream?: StreamRequest,
+) {
   const motorcyclePath = (id: number) => `${motorcyclesPath}/${id}`;
   const maintenancePath = (id: number) =>
     `${motorcyclePath(id)}/maintenance-records`;
@@ -25,6 +30,7 @@ export function createClient(request: Request, schedule?: Schedule) {
   const importPath = (bike: number, id: number) => `${importsPath(bike)}/${id}`;
   return {
     schedule,
+    copilot: copilotOperations(request, stream),
     account: accountOperations(request),
     invoices: {
       list: (bike: number, page: number) =>

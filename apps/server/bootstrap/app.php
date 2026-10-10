@@ -4,6 +4,7 @@ use App\Accounts\Exceptions\AccountsNativeAuthException;
 use App\Accounts\Exceptions\AccountsSocialException;
 use App\Accounts\Http\Middleware\ThrottleRecoveryRequests;
 use App\Garage\Exceptions\GarageInvoiceException;
+use App\Ai\Exceptions\AiCopilotException;
 use App\Garage\Exceptions\GarageMaintenanceException;
 use App\Http\Middleware\AddLogContext;
 use App\Http\Middleware\ProtectSensitiveData;
@@ -29,6 +30,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->redirectGuestsTo(fn (): string => route('filament.admin.auth.login'));
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->render(fn (AiCopilotException $exception): Illuminate\Http\JsonResponse =>
+            response()->json(['message' => $exception->getMessage()], 409));
         $exceptions->render(function (
             AccountsNativeAuthException|AccountsSocialException $exception,
             Request $request,

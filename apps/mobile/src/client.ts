@@ -1,6 +1,10 @@
 import { createClient, type Request } from "@motominator/client";
 import { useMemo } from "react";
-import { authenticatedApi, AuthError } from "./auth/client";
+import {
+  authenticatedApi,
+  authenticatedStream,
+  AuthError,
+} from "./auth/client";
 import { useAuth } from "./auth/auth-context";
 
 export function useClient() {
@@ -21,6 +25,10 @@ export function useClient() {
           const timer = setTimeout(callback, delay);
           return () => clearTimeout(timer);
         },
+        (path, data) =>
+          authenticatedStream(path, data, () => {
+            void refresh();
+          }),
       ),
     [refresh],
   );

@@ -7,7 +7,7 @@ Overviews contain short summaries and clear links. Forms and long lists have the
 own routes. Wider screens arrange summary cards in columns; they keep the same
 screen hierarchy as phones.
 
-Home is currently a launchpad for Garage and Account. Its eventual product content
+Home is currently a launchpad for Garage, Copilot and Account. Its eventual product content
 is undecided. Add Social, Workshops or Catalogues destinations when those domains
 have real screens; do not create empty navigation entries in anticipation.
 
@@ -21,13 +21,14 @@ Home
 │           ├── Maintenance history → Record details → Edit record
 │           │                       └── Record maintenance
 │           └── Invoice library → Upload invoice → Review invoice
+├── Copilot conversations → Conversation
 └── Account overview → Dedicated settings screens
 ```
 
 ## Browser reference
 
 React Router owns URLs and browser history. `src/ui/AppFrame.tsx` owns the global
-Home/Garage/Account navigation: sidebar on larger screens, a menu on small screens.
+Home/Garage/Copilot/Account navigation: sidebar on larger screens, a menu on small screens.
 `src/ui/Page.tsx` supplies the heading, focus on route changes, parent link and
 Garage home shortcut. Parent links have fixed destinations and work after a direct
 link or refresh; the browser Back button remains history-based.
@@ -45,7 +46,7 @@ routes. API and server administration routes belong to Laravel's host.
 ## Native reference
 
 Expo Router files under `src/app/` are thin route adapters. The root layout owns
-authentication. `(tabs)` contains Home, Garage and Account; each domain has its own
+authentication. `(tabs)` contains Home, Garage, Copilot and Account; each domain has its own
 Stack and an `index` anchor for deep links. `src/navigation/domain-stack.tsx` owns
 the native Back header and a domain-root shortcut on descendant screens. The Home
 tab is the global return destination. Reselecting a native domain tab returns to

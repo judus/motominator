@@ -54,6 +54,22 @@ The equivalent `npm run dev:web` and `npm run dev:mobile` remain available.
 `npm run dev:server` starts Sail; `just` is the main server management interface.
 Run `just` to list all helpers.
 
+## Text copilot
+
+Open **Copilot** in the browser navigation or mobile tab bar, then choose **New
+conversation**. Use your existing **Account → AI settings** provider, model and
+key. Try “What maintenance have I recorded for my motorcycle?”
+
+Laravel streams the reply and saves private conversation history. Read-only tools
+can inspect your motorcycles and their recorded maintenance/mileage. Messages and
+requested records go to your chosen provider; the provider key stays on the server.
+Both apps share chat state and retry behavior. Stop closes the connection; provider
+cancellation may take until the next SDK event. Retries are explicit paid requests.
+
+This slice is text only. It does not modify garage records, browse the web or supply
+unverified technical specifications. The usual `just up`, `just web` and `just mobile`
+commands are sufficient; chat does not require an additional development service.
+
 ## Local services
 
 | Service       | Host address/port       | Container host    |

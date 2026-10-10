@@ -7,7 +7,7 @@ export function DomainStack({
   home,
 }: {
   title: string;
-  home: "/garage" | "/account";
+  home: "/garage" | "/account" | "/copilot";
 }) {
   const theme = useTheme(),
     pathname = usePathname();

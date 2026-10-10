@@ -99,6 +99,7 @@ export function AppFrame({
             </Text>
             {link("/", "Home")}
             {link("/garage", "Garage")}
+            {link("/copilot", "Copilot")}
             {link("/account", "Account")}
             <Button
               mt="auto"
