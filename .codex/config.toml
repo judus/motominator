@@ -7,7 +7,24 @@ startup_timeout_sec = 30
 [mcp_servers.expo]
 url = "https://mcp.expo.dev/mcp"
 
+[mcp_servers.mantine]
+command = "npx"
+args = ["--yes", "@mantine/mcp-server@9.7.1"]
+startup_timeout_sec = 60
+
 [mcp_servers.chrome-devtools]
 command = "npx"
 args = ["--yes", "chrome-devtools-mcp@1.10.1", "--headless", "--isolated", "--no-usage-statistics", "--no-performance-crux"]
 startup_timeout_sec = 60
+
+[mcp_servers.chrome-devtools.tools.new_page]
+approval_mode = "approve"
+
+[mcp_servers.chrome-devtools.tools.take_snapshot]
+approval_mode = "approve"
+
+[mcp_servers.chrome-devtools.tools.navigate_page]
+approval_mode = "approve"
+
+[mcp_servers.chrome-devtools.tools.close_page]
+approval_mode = "approve"

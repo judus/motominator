@@ -3,10 +3,14 @@ includes:
     - vendor/nesbot/carbon/extension.neon
 
 parameters:
-    level: 5
+    level: max
+    stubFiles:
+        - stubs/FrameworkCallbacks.stub
     paths:
         - app
         - bootstrap/app.php
+        - bootstrap/providers.php
+        - scripts
         - database
         - routes
         - tests

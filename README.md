@@ -8,12 +8,17 @@ let the product emerge. AI is a secondary capability grounded in identifiable so
 - `apps/server`: Laravel 13 API, AI SDK, Boost and Sail; Composer owns PHP dependencies.
 - `apps/web`: React, TypeScript and Vite browser application.
 - `apps/mobile`: React Native, Expo SDK 57 and Expo Router for Android and iOS.
-- `packages`: shared client packages when a concrete need appears.
+- `packages/client`: shared API operations, types and React behavior for web/mobile.
 - `.context`: project intent, decisions and setup history. Start at [.context/README.md](.context/README.md).
 - `docs`: technical notes, including the [Hetzner deployment direction](docs/deployment.md).
 
 Each app owns its configuration and build. Clients communicate with Laravel over HTTP.
 The root npm workspace has one JavaScript lockfile; Laravel has its own Composer lockfile.
+
+Both clients import the private local `@motominator/client` workspace. Its `/react`
+entry exports shared garage, pagination, form and AI settings hooks. Apps supply
+their authenticated HTTP transport and render their own UI. No npm publishing or
+extra development server is needed. See [packages/client/README.md](packages/client/README.md).
 
 ## Local setup
 
@@ -66,16 +71,23 @@ scheduler alongside the API. Cache and sessions continue to use the database.
 Mail is sent to Mailpit using SMTP. No AI credentials are required to run the scaffold.
 
 Local development dashboards are available at [Horizon](http://localhost:8000/horizon)
-and [Telescope](http://localhost:8000/telescope). Telescope records API requests,
-queries, jobs and other application activity. Debugbar appears on Laravel HTML pages
+and [Telescope](http://localhost:8000/telescope), after signing in as a verified
+administrator. Personal API, authentication and admin requests are excluded from
+diagnostic capture. Debugbar appears on ordinary Laravel HTML pages
 such as `/`; it does not add a toolbar to the separate React or Expo applications.
 Telescope and Debugbar are development dependencies registered only in the `local`
-environment. Horizon's dashboard denies access outside `local` until an authorization
-policy is configured.
+environment. Both dashboards require administrator authorization in every environment.
+MySQL, Redis, Mailpit and Vite host ports bind to loopback; the HTTP backend remains
+available on the LAN for physical devices.
+
+Invoice uploads default to an account limit of 100 documents and 100 MiB. Server
+`INVOICE_STORAGE_MAX_DOCUMENTS` and `INVOICE_STORAGE_MAX_BYTES` configure these limits.
 
 The scheduler records Horizon metrics every five minutes and prunes Telescope entries
 older than 24 hours daily. After changing worker code or configuration, run
-`just artisan horizon:terminate`; the Horizon container restarts it with the changes.
+`just sail exec horizon php artisan horizon:terminate`; the Horizon container restarts
+it with the changes. Run termination in that container because Horizon matches the
+supervisor by hostname.
 
 This checkout forwards MySQL on **3307** because 3306 is already occupied locally.
 Fresh checkouts use the default 3306 shown above.
@@ -90,11 +102,26 @@ Both clients have a **Check server** button calling `GET /api/v1/status`.
 It returns `{"name":"Motominator","status":"ok"}` and checks HTTP connectivity,
 not database readiness or external providers. Laravel's starter welcome page remains at `/`.
 
+## Importing maintenance invoices
+
+Open **Garage → motorcycle → Invoices** in either client. Upload a PDF/JPEG/PNG
+(up to 10 MB), or choose/photograph an invoice on mobile. Uploading is private and
+does not invoke AI. Save your provider/key/model in **Account → AI settings**, then
+choose **Extract with my AI provider**. This sends the document to that provider and
+may incur charges; the model must support the document type and structured output.
+
+Review the extracted workshop, work, positions, labor, taxes and totals. Fill in
+unknown required details, then choose **Confirm and save maintenance**. No maintenance
+or workshop is created before confirmation. **Save review draft** keeps unfinished
+reviews; **Reload saved draft** discards local edits and retrieves the latest version.
+Status polls automatically, and interrupted extraction offers an explicit retry.
+
 ## Server helpers
 
 ```sh
 just status
 just logs
+just app-logs
 just artisan route:list
 just migrate
 just test
@@ -186,11 +213,22 @@ npm run build:mobile
 it does not produce installable native binaries. Native builds/signing are future steps.
 Local iOS simulator/build tools require macOS.
 
-| App     | Tests                                                                       | Analysis                                    | Formatting                    |
-| ------- | --------------------------------------------------------------------------- | ------------------------------------------- | ----------------------------- |
-| Server  | PHPUnit 12 via `just test`                                                  | Larastan/PHPStan level 5 via `just analyse` | Laravel Pint (Laravel preset) |
-| Browser | Vitest + React Testing Library via `npm run test:web`                       | TypeScript + scaffold Oxlint config         | Prettier defaults             |
-| Mobile  | Jest + `jest-expo` + React Native Testing Library via `npm run test:mobile` | TypeScript + Expo ESLint config             | Prettier defaults             |
+| App     | Tests                                                                       | Analysis                                          | Formatting               |
+| ------- | --------------------------------------------------------------------------- | ------------------------------------------------- | ------------------------ |
+| Server  | PHPUnit 12 via `just test`                                                  | Larastan/PHPStan maximum level via `just analyse` | PHPCS: PSR-12 + Slevomat |
+| Browser | Vitest + React Testing Library via `npm run test:web`                       | TypeScript + scaffold Oxlint config               | Prettier defaults        |
+| Mobile  | Jest + `jest-expo` + React Native Testing Library via `npm run test:mobile` | TypeScript + Expo ESLint config                   | Prettier defaults        |
+
+`just style-check` and `just format-check` run PHP_CodeSniffer: PSR-12 plus
+Slevomat's 120-column code limit (comments/imports excluded) and multiline calls.
+`just format` / `just composer format` apply PHPCBF fixes; long expressions may
+need manual wrapping. Pint is removed. Larastan runs at maximum level without a
+baseline. See `.context/04-testing-and-analysis.md` for verification history.
+
+For PhpStorm, run `just ide-helpers` after migrations or model cast/relationship changes.
+It refreshes tracked model PHPDoc and ignored local facade/container metadata, then
+formats models. Review existing annotations when field types change; generation
+preserves custom docs and does not automatically replace stale tags.
 
 `just check` checks analysis and formatting across all apps. `just test-all` runs all
 three test suites; `npm test` runs the two client suites only. `just format` applies
@@ -214,6 +252,8 @@ Laravel Boost generated `apps/server/AGENTS.md`, `.agents/skills/` and `.codex/c
 Run Boost through Sail from `apps/server`; its MCP config supports server-only sessions.
 Refresh with `vendor/bin/sail artisan boost:update` there. App-specific monorepo guidance
 lives in `apps/server/.ai/guidelines/monorepo.blade.php` and survives regeneration.
+Project architecture/DI, domain namespace and model typing rules live alongside it in
+`architecture.blade.php` and are included in generated server instructions.
 Root `AGENTS.md` now routes work to each app. Expo guidance lives in
 `apps/mobile/AGENTS.md`, with 12 pinned official Expo skills under its `.agents/skills`.
 The browser has a small locally maintained guide linked to React's official docs.

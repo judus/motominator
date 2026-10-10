@@ -21,3 +21,17 @@ separately from ideas. Do not turn exploratory ideas into an assumed implementat
 
 Authentication implementation and remaining external setup are recorded in
 [07-authentication.md](07-authentication.md).
+
+The implemented maintenance model foundation and remaining exploratory decisions
+(mileage workflows, service plans, forecasts and check-ins) are recorded in
+[08-maintenance-domain-model.md](08-maintenance-domain-model.md).
+
+Client screen hierarchy, navigation and feature reference patterns are recorded in
+[09-client-navigation.md](09-client-navigation.md).
+
+Security contracts and remaining release controls are recorded in
+[10-security-and-privacy.md](10-security-and-privacy.md).
+
+The integration setup and GitHub protection status are recorded in
+[11-branches-and-quality-gates.md](11-branches-and-quality-gates.md); the workflow
+guide is [branches-and-merging.md](../docs/branches-and-merging.md).

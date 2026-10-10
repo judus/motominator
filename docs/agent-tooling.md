@@ -3,8 +3,66 @@
 ## Framework guidance
 
 Root `AGENTS.md` routes work to each app's instructions. Laravel Boost owns the
-server's generated guidance and skills. Expo's generated mobile `AGENTS.md` is
-preserved. `apps/web/AGENTS.md` is our local guide to official React documentation.
+server's generated guidance and skills. Expo's generated mobile `AGENTS.md` has
+an app-specific Tamagui section. `apps/web/AGENTS.md` is our local guide to official
+React documentation.
+
+Server project rules live in `apps/server/.ai/guidelines/architecture.blade.php`,
+which Boost includes when generating `apps/server/AGENTS.md`. This is our guidance,
+not upstream Laravel policy. It requires explicit DI, domain namespaces with global
+Eloquent models, readable contracts and maximum-level Larastan. Framework conventions
+remain the starting point; speculative layers and interfaces are discouraged.
+
+The installed Laravel best-practices skill already recommends explicit injection.
+Project guidance strengthens that recommendation into a service-locator prohibition
+outside composition roots and test setup. Read the skill for PHP architecture work.
+
+To refresh generated server guidance without replacing installed skills:
+
+```sh
+just artisan boost:update --no-discover --ignore-skills --no-interaction
+```
+
+Preserve the custom guideline sources when updating Boost. Do not patch generated
+upstream sections as the sole durable record of project decisions. Older code that
+violates these rules remains migration work; guidance changes do not move namespaces
+or refactor existing operations automatically.
+
+PHP formatting uses PHPCS 4.0.4 / PHPCBF with PSR-12 and Slevomat 8.31.1:
+`Files.LineLength` (120 columns, excluding comments/imports) and
+`Functions.RequireMultiLineCall`. Pint cannot enforce a general line width, so it
+has been removed. `phpcs.xml` explicitly references the Slevomat sniffs; the optional
+Composer installer plugin is disabled.
+
+`just format` fixes and `just format-check` / `just style-check` check the standard;
+CI uses the same Composer check. The small `scripts/format.php` launcher normalizes
+PHPCBF's successful-fixes exit status; unresolved findings still fail. `just analyse`
+runs maximum-level Larastan. Review architecture and contract quality separately.
+
+### PhpStorm and Eloquent types
+
+Laravel IDE Helper 3.7.0 is a server development dependency. Model field and relation
+PHPDoc is generated into the model files and tracked. Facade metadata (`_ide_helper.php`)
+and PhpStorm container metadata (`.phpstorm.meta.php`) are ignored local artifacts.
+The configuration avoids redundant query-method annotations, per-field magic `where` methods, relation count properties,
+and modifying Eloquent vendor files. Decimal casts use `numeric-string`; schema
+nullability and enum/date casts must remain accurate.
+
+After migrations, casts or relationship changes, run:
+
+```sh
+just ide-helpers
+```
+
+This refreshes local helpers, appends model PHPDoc and formats the models with PHPCBF.
+Append mode preserves custom annotations; review changed fields for stale existing
+PHPDoc and correct those explicitly. Do not use normal public typed properties for
+Eloquent attributes. On a fresh checkout, run migrations before generating model docs.
+
+PhpStorm must index the server project, Composer vendor code and the ignored helpers.
+Let indexing finish after generation. Laravel already annotates `DB::transaction()`;
+if it remains highlighted, inspect the diagnostic text and import before assuming a
+missing method. Actual editor diagnostics are not verified by successful generation.
 
 Twelve official Expo framework skills are installed under `apps/mobile/.agents/skills`.
 Their original content and references are preserved with the MIT license and source
@@ -78,9 +136,43 @@ mode with an isolated temporary profile. Usage statistics and the performance to
 CrUX integration are disabled. Start a new Codex session from the repo root to load
 the tools; no separate Chrome debugging port or launcher script is needed.
 
+## Mantine browser helpers
+
+Mantine's official documentation MCP is registered as `mantine`, using
+`npx --yes @mantine/mcp-server@9.7.1`. It searches documentation and retrieves
+component props and examples; it is not a browser automation tool. It does not
+require account linking. Start a new Codex session to load the registration.
+
+The browser app's `AGENTS.md` links Mantine's machine-readable docs, UI examples and
+official skills repository. Skills are linked, not separately installed. Use
+version-matched documentation when changing the library version. The tooling
+package is fetched through npm and is not an application dependency.
+
+Sources: https://mantine.dev/guides/llms/ and https://github.com/mantinedev/skills
+
+## Tamagui mobile helpers
+
+Official Tamagui agent guidance and its component, configuration and animation
+references are installed under `apps/mobile/.agents/skills/tamagui`. `source.json`
+records the pinned upstream commit; the upstream MIT license is included.
+This is a repository snapshot, not an independently installed MCP server.
+
+From `apps/mobile`, run `npm run ui:context` and read `tamagui-prompt.md` before
+changing tokens or components. The CLI generates it from the actual app config;
+generated files are ignored. `tamagui.config.ts` owns themes, tokens and fonts.
+The CLI is a development dependency, with its version aligned to the UI packages.
+Expo's official skills continue to cover navigation, networking and device APIs.
+
+Sources: https://tamagui.dev/docs/intro/installation,
+https://tamagui.dev/docs/guides/expo and
+https://github.com/tamagui/tamagui/tree/5918dae34703cac917078c9e0d73c58782ec9ab8/plans/tamagui-skill/skills/tamagui
+
 ## Verification and limits
 
-- `codex mcp list --json` recognizes the project-scoped MCP entries.
+- `codex mcp list --json` recognizes the project-scoped MCP entries, including Mantine.
+- Mantine MCP 9.7.1 initialized over stdio, exposed five tools and successfully
+  searched for AppShell documentation. The current Codex session still needs a
+  restart to load the new registration into its tool catalog.
 - Expo documentation search, page retrieval and library lookup calls succeeded.
 - Chrome DevTools MCP 1.10.1 initialized over stdio and exposed 30 tools. A real
   isolated headless Chrome opened Horizon and Telescope, inspected their rendered

@@ -3,6 +3,12 @@
 Read root and app `AGENTS.md` for ownership and framework conventions. Review
 concrete defects with file/line evidence; distinguish verified issues from questions.
 
+Pay extra attention to security and privacy: cross-account access, authentication
+and credential revocation, CSRF/OAuth callbacks, invoice uploads/downloads, encrypted
+BYOK storage, sensitive logs and diagnostics, and stale client state across account
+changes. Treat invoice contents and model responses as untrusted input. Check
+dependency exposure and CI permissions; report concrete attack paths and prerequisites.
+
 - Check authorization, ownership, fresh credential checks and transaction boundaries.
 - Keep private user data, secrets and exception arguments out of logs and diagnostics.
 - Common client API/state/save behavior belongs in `packages/client`; apps own UI,

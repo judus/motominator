@@ -1,3 +1,4 @@
+import { ApiError, createClient } from "@motominator/client";
 import { fetch } from "expo/fetch";
 import * as SecureStore from "expo-secure-store";
 import * as Crypto from "expo-crypto";
@@ -13,18 +14,10 @@ export interface Token {
   token: string;
   expires_at: string;
 }
-export interface User {
-  id: number;
-  name: string;
-  email: string;
-  email_verified_at: string | null;
-}
-export class AuthError extends Error {
-  constructor(
-    message: string,
-    public status = 0,
-  ) {
-    super(message);
+export type { AccountUser as User } from "@motominator/client";
+export class AuthError extends ApiError {
+  constructor(message: string, status = 0) {
+    super(status, {}, message);
   }
 }
 
@@ -39,10 +32,14 @@ export async function api<T>(
     credentials: "omit",
     headers: {
       Accept: "application/json",
-      "Content-Type": "application/json",
+      ...(data instanceof FormData
+        ? {}
+        : { "Content-Type": "application/json" }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    ...(data === undefined ? {} : { body: JSON.stringify(data) }),
+    ...(data === undefined
+      ? {}
+      : { body: data instanceof FormData ? data : JSON.stringify(data) }),
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok)
@@ -57,33 +54,59 @@ export async function api<T>(
   return result as T;
 }
 
-export async function readToken(): Promise<Token | null> {
-  if (Platform.OS === "web") return null;
-  const stored = await SecureStore.getItemAsync(storageKey);
-  if (!stored) return null;
-  try {
-    const value = JSON.parse(stored) as Token;
-    if (
-      typeof value.token === "string" &&
-      Date.parse(value.expires_at) > Date.now()
-    )
-      return value;
-  } catch {
-    /* Discard an invalid or obsolete stored value. */
-  }
-  await clearToken();
-  return null;
+// Serialize reads and mutations: comparison and deletion must be one operation.
+// Otherwise a delayed unauthorized response can erase a newer sign-in.
+let storageOperations: Promise<unknown> = Promise.resolve();
+function withTokenStorage<T>(operation: () => Promise<T>): Promise<T> {
+  const result = storageOperations.then(operation);
+  storageOperations = result.catch(() => undefined);
+  return result;
 }
 
-export async function saveToken(value: Token): Promise<void> {
-  if (Platform.OS === "web")
-    throw new AuthError("Use the browser application for web sign-in.");
-  await SecureStore.setItemAsync(storageKey, JSON.stringify(value), {
-    keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+export function readToken(): Promise<Token | null> {
+  return withTokenStorage(async () => {
+    if (Platform.OS === "web") return null;
+    const stored = await SecureStore.getItemAsync(storageKey);
+    if (!stored) return null;
+    try {
+      const value = JSON.parse(stored) as Token;
+      if (
+        typeof value.token === "string" &&
+        Date.parse(value.expires_at) > Date.now()
+      )
+        return value;
+    } catch {
+      /* Discard an invalid or obsolete stored value. */
+    }
+    await SecureStore.deleteItemAsync(storageKey);
+    return null;
   });
 }
-export async function clearToken(): Promise<void> {
-  if (Platform.OS !== "web") await SecureStore.deleteItemAsync(storageKey);
+
+export function saveToken(value: Token): Promise<void> {
+  return withTokenStorage(async () => {
+    if (Platform.OS === "web")
+      throw new AuthError("Use the browser application for web sign-in.");
+    await SecureStore.setItemAsync(storageKey, JSON.stringify(value), {
+      keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+    });
+  });
+}
+export function clearToken(expectedToken?: string): Promise<boolean> {
+  return withTokenStorage(async () => {
+    if (Platform.OS === "web") return false;
+    if (expectedToken !== undefined) {
+      const stored = await SecureStore.getItemAsync(storageKey);
+      if (!stored) return false;
+      try {
+        if ((JSON.parse(stored) as Token).token !== expectedToken) return false;
+      } catch {
+        return false;
+      }
+    }
+    await SecureStore.deleteItemAsync(storageKey);
+    return true;
+  });
 }
 
 export async function socialSignIn(
@@ -120,4 +143,51 @@ export async function socialSignIn(
     code: intent.code,
     verifier,
   });
+}
+
+export async function authenticatedApi<T>(
+  path: string,
+  method = "GET",
+  data?: unknown,
+): Promise<T> {
+  const token = await readToken();
+  if (!token)
+    throw new AuthError("Your session expired. Please sign in again.", 401);
+  try {
+    return await api<T>(path, method, data, token.token);
+  } catch (failure) {
+    if (failure instanceof AuthError && failure.status === 401)
+      await clearToken(token.token);
+    throw failure;
+  }
+}
+
+// The proof verifier stays in memory. Device tokens never enter browser URLs.
+export async function linkSocialAccount(
+  provider: string,
+  password: string,
+): Promise<boolean> {
+  const verifier = Array.from(await Crypto.getRandomBytesAsync(32), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+  const challenge = await Crypto.digestStringAsync(
+    Crypto.CryptoDigestAlgorithm.SHA256,
+    verifier,
+  );
+  const account = createClient(authenticatedApi).account;
+  const intent = await account.startSocialLink(provider, password, challenge);
+  const result = await WebBrowser.openAuthSessionAsync(
+    intent.url,
+    "motominator://auth-return",
+  );
+  if (result.type !== "success") return false;
+  const returned = new URL(result.url);
+  if (
+    returned.protocol !== "motominator:" ||
+    returned.hostname !== "auth-return" ||
+    returned.searchParams.get("link_code") !== intent.code
+  )
+    throw new AuthError("Social account linking could not be completed.");
+  await account.completeSocialLink(intent.code, verifier);
+  return true;
 }

@@ -1,7 +1,15 @@
 import { fetch } from "expo/fetch";
 import * as SecureStore from "expo-secure-store";
 import * as WebBrowser from "expo-web-browser";
-import { api, readToken, saveToken, socialSignIn } from "../src/auth/client";
+import {
+  api,
+  readToken,
+  clearToken,
+  saveToken,
+  socialSignIn,
+  linkSocialAccount,
+  authenticatedApi,
+} from "../src/auth/client";
 
 jest.mock("expo/fetch", () => ({ fetch: jest.fn() }));
 jest.mock("expo-secure-store", () => ({
@@ -129,4 +137,156 @@ it("rejects a substituted callback code before exchange", async () => {
     "could not be completed",
   );
   expect(fetch).toHaveBeenCalledTimes(1);
+});
+
+it("authenticates feature requests using the stored device token", async () => {
+  jest
+    .mocked(SecureStore.getItemAsync)
+    .mockResolvedValue(JSON.stringify(token));
+  jest.mocked(fetch).mockResolvedValue(response({ data: [] }));
+  await authenticatedApi("/api/v1/motorcycles");
+  expect(fetch).toHaveBeenCalledWith(
+    expect.stringMatching(/\/api\/v1\/motorcycles$/),
+    expect.objectContaining({
+      credentials: "omit",
+      headers: expect.objectContaining({
+        Authorization: `Bearer ${token.token}`,
+      }),
+    }),
+  );
+});
+it("discards a revoked device token after a feature request returns unauthorized", async () => {
+  jest
+    .mocked(SecureStore.getItemAsync)
+    .mockResolvedValue(JSON.stringify(token));
+  jest
+    .mocked(fetch)
+    .mockResolvedValue(response({ message: "Unauthenticated." }, 401));
+  await expect(authenticatedApi("/api/v1/motorcycles")).rejects.toMatchObject({
+    status: 401,
+  });
+  expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(
+    "motominator.device-token",
+  );
+});
+
+it("sends native multipart uploads with bearer auth and no JSON content type", async () => {
+  jest.mocked(fetch).mockResolvedValue(response({ data: { id: 1 } }, 201));
+  const body = new FormData();
+  await api("/api/v1/motorcycles/1/invoice-imports", "POST", body, token.token);
+  const options = jest.mocked(fetch).mock.calls[0][1]!;
+  expect(options.body).toBe(body);
+  expect(options.headers).toMatchObject({
+    Authorization: `Bearer ${token.token}`,
+  });
+  expect(options.headers).not.toHaveProperty("Content-Type");
+});
+
+it("links a provider with proof while keeping the bearer token out of the browser URL", async () => {
+  const code = "l".repeat(64);
+  jest
+    .mocked(SecureStore.getItemAsync)
+    .mockResolvedValue(JSON.stringify(token));
+  jest
+    .mocked(fetch)
+    .mockResolvedValueOnce(
+      response({
+        code,
+        url: `http://localhost/auth/google/redirect?native_link=${code}`,
+      }),
+    )
+    .mockResolvedValueOnce(response({}));
+  jest.mocked(WebBrowser.openAuthSessionAsync).mockResolvedValue({
+    type: "success",
+    url: `motominator://auth-return?link_code=${code}`,
+  });
+  expect(await linkSocialAccount("google", "password")).toBe(true);
+  expect(WebBrowser.openAuthSessionAsync).toHaveBeenCalledWith(
+    expect.not.stringContaining(token.token),
+    "motominator://auth-return",
+  );
+  expect(fetch).toHaveBeenLastCalledWith(
+    expect.stringMatching(/account\/social\/link\/complete$/),
+    expect.objectContaining({
+      body: JSON.stringify({ code, verifier: "01".repeat(32) }),
+    }),
+  );
+});
+it("rejects a mismatched social-link callback before consuming the proof", async () => {
+  jest
+    .mocked(SecureStore.getItemAsync)
+    .mockResolvedValue(JSON.stringify(token));
+  jest.mocked(fetch).mockResolvedValue(
+    response({
+      code: "l".repeat(64),
+      url: "http://localhost/auth/google/redirect",
+    }),
+  );
+  jest.mocked(WebBrowser.openAuthSessionAsync).mockResolvedValue({
+    type: "success",
+    url: "motominator://auth-return?link_code=wrong",
+  });
+  await expect(linkSocialAccount("google", "password")).rejects.toThrow(
+    "Social account linking could not be completed.",
+  );
+  expect(fetch).toHaveBeenCalledTimes(1);
+});
+
+it("keeps a replacement token when an obsolete request returns 401", async () => {
+  let stored = JSON.stringify(token);
+  jest.mocked(SecureStore.getItemAsync).mockImplementation(async () => stored);
+  jest
+    .mocked(SecureStore.setItemAsync)
+    .mockImplementation(async (_key, value) => {
+      stored = value;
+    });
+  jest.mocked(SecureStore.deleteItemAsync).mockImplementation(async () => {
+    stored = "";
+  });
+  let resolve!: (value: Awaited<ReturnType<typeof fetch>>) => void;
+  jest.mocked(fetch).mockImplementation(
+    () =>
+      new Promise((done) => {
+        resolve = done;
+      }),
+  );
+  const oldRequest = authenticatedApi("/api/v1/user").catch((error) => error);
+  while (!resolve) await Promise.resolve();
+  const replacement = { ...token, token: "replacement-device-token" };
+  await saveToken(replacement);
+  resolve(response({}, 401));
+  await oldRequest;
+  expect(await readToken()).toEqual(replacement);
+  expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
+});
+
+it("serializes replacement storage behind an in-progress owned deletion", async () => {
+  let stored = JSON.stringify(token);
+  let finish!: () => void;
+  jest.mocked(SecureStore.getItemAsync).mockImplementation(async () => stored);
+  jest.mocked(SecureStore.deleteItemAsync).mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        finish = () => {
+          stored = "";
+          resolve();
+        };
+      }),
+  );
+  jest
+    .mocked(SecureStore.setItemAsync)
+    .mockImplementation(async (_key, value) => {
+      stored = value;
+    });
+  const removal = clearToken(token.token);
+  for (let attempt = 0; attempt < 20 && !finish; attempt++)
+    await Promise.resolve();
+  expect(finish).toBeDefined();
+  const replacement = { ...token, token: "replacement-token" };
+  const saving = saveToken(replacement);
+  await Promise.resolve();
+  expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
+  finish();
+  await Promise.all([removal, saving]);
+  expect(await readToken()).toEqual(replacement);
 });

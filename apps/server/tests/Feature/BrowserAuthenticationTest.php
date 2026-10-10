@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Password;
@@ -16,12 +17,12 @@ class BrowserAuthenticationTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
-    public function test_guests_cannot_load_the_current_user(): void
+    public function testGuestsCannotLoadTheCurrentUser(): void
     {
         $this->getJson('/api/v1/user')->assertUnauthorized();
     }
 
-    public function test_login_loads_only_the_current_user_and_logout_ends_the_session(): void
+    public function testLoginLoadsOnlyTheCurrentUserAndLogoutEndsTheSession(): void
     {
         $user = User::factory()->create();
         $this->postJson('/login', ['email' => $user->email, 'password' => 'password'])->assertOk();
@@ -31,7 +32,7 @@ class BrowserAuthenticationTest extends TestCase
         $this->assertGuest();
     }
 
-    public function test_invalid_credentials_are_rejected_and_throttled(): void
+    public function testInvalidCredentialsAreRejectedAndThrottled(): void
     {
         $user = User::factory()->create();
         for ($attempt = 0; $attempt < 5; $attempt++) {
@@ -41,7 +42,7 @@ class BrowserAuthenticationTest extends TestCase
         $this->assertGuest();
     }
 
-    public function test_browser_origins_are_explicit_and_support_credentials(): void
+    public function testBrowserOriginsAreExplicitAndSupportCredentials(): void
     {
         $this->withHeaders(['Origin' => 'http://localhost:5173', 'Access-Control-Request-Method' => 'POST'])
             ->options('/login')->assertNoContent()
@@ -49,33 +50,42 @@ class BrowserAuthenticationTest extends TestCase
             ->assertHeader('Access-Control-Allow-Credentials', 'true');
     }
 
-    public function test_untrusted_origins_are_not_allowed(): void
+    public function testUntrustedOriginsAreNotAllowed(): void
     {
         $this->withHeaders(['Origin' => 'https://untrusted.example'])
             ->getJson('/api/v1/auth/config')->assertHeader('Access-Control-Allow-Origin', 'http://localhost:5173');
     }
 
-    public function test_login_requires_csrf_outside_the_test_environment(): void
+    public function testLoginRequiresCsrfOutsideTheTestEnvironment(): void
     {
         $this->app->instance('env', 'local');
         $this->postJson('/login', ['email' => 'rider@example.test', 'password' => 'password'])->assertStatus(419);
     }
 
-    public function test_recovery_has_the_same_response_for_existing_and_unknown_accounts(): void
+    public function testRecoveryHasTheSameResponseForExistingAndUnknownAccounts(): void
     {
         Notification::fake();
         $user = User::factory()->create();
         $expected = ['message' => 'If an account exists, a password reset link has been sent.'];
         $this->postJson('/forgot-password', ['email' => $user->email])->assertOk()->assertExactJson($expected);
-        $this->postJson('/forgot-password', ['email' => 'missing@example.test'])->assertOk()->assertExactJson($expected);
-        Notification::assertSentTo($user, ResetPassword::class, function (ResetPassword $notification) use ($user): bool {
-            $url = $notification->toMail($user)->actionUrl;
+        $this->postJson('/forgot-password', ['email' => 'missing@example.test'])->assertOk()->assertExactJson(
+            $expected
+        );
+        Notification::assertSentTo(
+            $user,
+            ResetPassword::class,
+            function (ResetPassword $notification) use ($user): bool {
+                $url = $notification->toMail($user)->actionUrl;
 
-            return str_starts_with($url, config('fortify.frontend_url').'/reset-password?');
-        });
+                return str_starts_with(
+                    $url,
+                    Config::string('fortify.frontend_url') . '/reset-password?'
+                );
+            }
+        );
     }
 
-    public function test_recovery_endpoint_is_rate_limited(): void
+    public function testRecoveryEndpointIsRateLimited(): void
     {
         for ($attempt = 0; $attempt < 6; $attempt++) {
             $this->postJson('/forgot-password', ['email' => 'missing@example.test'])->assertOk();
@@ -83,15 +93,20 @@ class BrowserAuthenticationTest extends TestCase
         $this->postJson('/forgot-password', ['email' => 'missing@example.test'])->assertTooManyRequests();
     }
 
-    public function test_reset_updates_password_and_rejects_reused_or_expired_tokens(): void
+    public function testResetUpdatesPasswordAndRejectsReusedOrExpiredTokens(): void
     {
         $this->freezeTime();
         $user = User::factory()->create();
         $user->createToken('phone', ['account:read']);
         $token = Password::broker('users')->createToken($user);
-        $payload = ['email' => $user->email, 'token' => $token, 'password' => 'replacement-password', 'password_confirmation' => 'replacement-password'];
+        $payload = [
+            'email' => $user->email,
+            'token' => $token,
+            'password' => 'replacement-password',
+            'password_confirmation' => 'replacement-password'
+        ];
         $this->postJson('/reset-password', $payload)->assertOk();
-        $this->assertTrue(Hash::check('replacement-password', $user->refresh()->password));
+        $this->assertTrue(Hash::check('replacement-password', $user->refresh()->password ?? ''));
         $this->assertSame(0, $user->tokens()->count());
         $this->postJson('/reset-password', $payload)->assertUnprocessable();
         $payload['token'] = Password::broker('users')->createToken($user);
@@ -99,43 +114,68 @@ class BrowserAuthenticationTest extends TestCase
         $this->postJson('/reset-password', $payload)->assertUnprocessable();
     }
 
-    public function test_invalid_reset_links_do_not_reveal_whether_an_account_exists(): void
+    public function testInvalidResetLinksDoNotRevealWhetherAnAccountExists(): void
     {
         $user = User::factory()->create();
-        $payload = ['token' => 'invalid', 'password' => 'replacement-password', 'password_confirmation' => 'replacement-password'];
-        $known = $this->postJson('/reset-password', $payload + ['email' => $user->email])->assertUnprocessable()->json();
-        $unknown = $this->postJson('/reset-password', $payload + ['email' => 'missing@example.test'])->assertUnprocessable()->json();
+        $payload = [
+            'token' => 'invalid',
+            'password' => 'replacement-password',
+            'password_confirmation' => 'replacement-password'
+        ];
+        $known = $this->postJson(
+            '/reset-password',
+            $payload + ['email' => $user->email]
+        )->assertUnprocessable()->json();
+        $unknown = $this->postJson(
+            '/reset-password',
+            $payload + ['email' => 'missing@example.test']
+        )->assertUnprocessable()->json();
         $this->assertSame($known, $unknown);
     }
 
-    public function test_verification_mail_targets_the_browser_and_signed_api_link_verifies_only_its_user(): void
+    public function testVerificationMailTargetsTheBrowserAndSignedApiLinkVerifiesOnlyItsUser(): void
     {
         Notification::fake();
         $user = User::factory()->unverified()->create();
         $this->actingAs($user)->postJson('/email/verification-notification')->assertStatus(202);
-        Notification::assertSentTo($user, VerifyEmail::class, fn (VerifyEmail $notification): bool => str_starts_with($notification->toMail($user)->actionUrl, config('fortify.frontend_url').'/verify-email?'));
-        $url = URL::temporarySignedRoute('verification.verify', now()->addHour(), ['id' => $user->id, 'hash' => sha1($user->email)]);
+        Notification::assertSentTo(
+            $user,
+            VerifyEmail::class,
+            fn (VerifyEmail $notification): bool => str_starts_with(
+                $notification->toMail($user)->actionUrl,
+                Config::string('fortify.frontend_url') . '/verify-email?'
+            )
+        );
+        $url = URL::temporarySignedRoute(
+            'verification.verify',
+            now()->addHour(),
+            ['id' => $user->id, 'hash' => sha1($user->email)]
+        );
         $this->getJson($url)->assertNoContent();
-        $this->assertTrue($user->fresh()->hasVerifiedEmail());
+        $this->assertTrue($user->refresh()->hasVerifiedEmail());
     }
 
-    public function test_verification_rejects_invalid_expired_and_foreign_links(): void
+    public function testVerificationRejectsInvalidExpiredAndForeignLinks(): void
     {
         $user = User::factory()->unverified()->create();
         $other = User::factory()->unverified()->create();
         $this->actingAs($user);
         $parameters = ['id' => $user->id, 'hash' => sha1($user->email)];
         $url = URL::temporarySignedRoute('verification.verify', now()->addHour(), $parameters);
-        $this->getJson($url.'tampered')->assertForbidden();
-        $foreign = URL::temporarySignedRoute('verification.verify', now()->addHour(), ['id' => $other->id, 'hash' => sha1($other->email)]);
+        $this->getJson($url . 'tampered')->assertForbidden();
+        $foreign = URL::temporarySignedRoute(
+            'verification.verify',
+            now()->addHour(),
+            ['id' => $other->id, 'hash' => sha1($other->email)]
+        );
         $this->getJson($foreign)->assertForbidden();
         $expired = URL::temporarySignedRoute('verification.verify', now()->subMinute(), $parameters);
         $this->getJson($expired)->assertForbidden();
-        $this->assertFalse($user->fresh()->hasVerifiedEmail());
-        $this->assertFalse($other->fresh()->hasVerifiedEmail());
+        $this->assertFalse($user->refresh()->hasVerifiedEmail());
+        $this->assertFalse($other->refresh()->hasVerifiedEmail());
     }
 
-    public function test_verification_resend_is_throttled(): void
+    public function testVerificationResendIsThrottled(): void
     {
         Notification::fake();
         $user = User::factory()->unverified()->create();
@@ -147,10 +187,11 @@ class BrowserAuthenticationTest extends TestCase
         Notification::assertSentToTimes($user, VerifyEmail::class, 6);
     }
 
-    public function test_auth_config_reports_closed_registration_without_exposing_credentials(): void
+    public function testAuthConfigReportsClosedRegistrationWithoutExposingCredentials(): void
     {
         config(['auth.registration_enabled' => false]);
-        $this->getJson('/api/v1/auth/config')->assertOk()->assertExactJson(['registration_enabled' => false, 'providers' => []]);
-
+        $this->getJson('/api/v1/auth/config')->assertOk()->assertExactJson(
+            ['registration_enabled' => false, 'providers' => []]
+        );
     }
 }

@@ -2,6 +2,8 @@ node_modules/
 dist/
 coverage/
 .expo/
+.tamagui/
+tamagui-prompt.md
 expo-env.d.ts
 AGENTS.md
 .agents/

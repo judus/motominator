@@ -8,17 +8,51 @@ is a secondary capability and must not invent parts compatibility or repair advi
 
 Before editing an app, read its own guidance:
 
-- `apps/server/AGENTS.md`: Laravel Boost's generated guidelines and app-scoped skills.
+- `apps/server/AGENTS.md`: Laravel Boost's generated guidelines, app-scoped skills
+  and our `.ai/guidelines/architecture.blade.php` project rules.
 - `apps/web/AGENTS.md`: browser conventions and official React documentation.
 - `apps/mobile/AGENTS.md`: Expo's generated guidance. Load
   `apps/mobile/.agents/skills/expo-overview/SKILL.md` first for Expo work, then the
   applicable official Expo skills in that directory.
+- `packages/client/AGENTS.md`: shared client ownership and dependency rules.
 
 Framework documentation and installed versions are the source of truth. Our web
 guidance is maintained locally; the Expo skills and Laravel Boost content come from
 their framework maintainers. Do not describe third-party React skills as first-party.
 
 ## Boundaries and tooling
+
+### Server architecture
+
+Read `apps/server/.ai/guidelines/architecture.blade.php` for domain ownership,
+explicit DI, exception contracts and model types. Laravel facades and framework
+construction remain supported; application service location belongs to composition
+roots and test setup. Models stay in `App\Models`; application code belongs to its
+domain. PHP gates are maximum-level Larastan and PHPCS/PHPCBF with PSR-12 and the
+focused Slevomat rules. Review boundaries and readable contracts beyond tool output.
+
+### Shared client architecture
+
+Before adding client API operations, domain types, form state, loading/retry logic
+or save flows, inspect `packages/client` and its instructions. Extend its public
+`@motominator/client` or `@motominator/client/react` exports when behavior is common
+to web and mobile. Do not copy shared behavior into an app or import another app's
+source. Share concrete common behavior; keep genuinely different interactions local
+instead of building speculative generic abstractions.
+
+Apps own presentation, navigation, platform APIs and authenticated HTTP adapters.
+The shared package receives its transport through `createClient`; it must not read
+cookies, SecureStore, client environment variables or global credentials. Laravel
+owns authoritative validation and permissions. Dependency direction is
+`apps -> packages/client -> injected transport`; the package never imports an app.
+
+Keep React hooks under the package's `/react` entry; its base entry is React-free.
+Consume public package exports rather than relative paths into package internals.
+Existing app lint rules guard cross-app/private imports, and package lint guards
+platform/UI dependencies and React leaking into the base layer. These checks do not
+detect duplicated business logic: review ownership explicitly when changing code.
+
+### Workspace tooling
 
 - Each app owns its implementation and configuration. Clients talk to Laravel over HTTP.
 - Root npm workspaces own the JavaScript lockfile. Composer dependencies belong to the server.

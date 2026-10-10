@@ -5,6 +5,8 @@ node_modules/
 
 # Expo
 .expo/
+.tamagui/
+tamagui-prompt.md
 dist/
 web-build/
 expo-env.d.ts

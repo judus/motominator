@@ -33,11 +33,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
   const generation = useRef(0);
+  const invalidate = useCallback(() => {
+    generation.current++;
+  }, []);
 
   const refresh = useCallback(async () => {
     const current = ++generation.current;
+    let token: Token | null = null;
     try {
-      const token = await readToken();
+      token = await readToken();
+      if (current !== generation.current) return;
       const user = token
         ? await api<User>("/api/v1/user", "GET", undefined, token.token)
         : null;
@@ -48,8 +53,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (failure) {
       if (current !== generation.current) return;
       if (failure instanceof AuthError && failure.status === 401) {
-        await clearToken();
-        setUser(null);
+        if (token) await clearToken(token.token);
+        if (current === generation.current) setUser(null);
       } else
         setError(
           "Unable to load your account. Check the connection and retry.",
@@ -60,36 +65,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
   useEffect(() => {
     let active = true;
-    const current = ++generation.current;
-    readToken()
-      .then((token) =>
-        token ? api<User>("/api/v1/user", "GET", undefined, token.token) : null,
-      )
-      .then((user) => {
-        if (active && current === generation.current) setUser(user);
-      })
-      .catch(async (failure) => {
-        if (!active || current !== generation.current) return;
-        if (failure instanceof AuthError && failure.status === 401)
-          await clearToken();
-        else
-          setError(
-            "Unable to load your account. Check the connection and retry.",
-          );
-      })
-      .finally(() => {
-        if (active) setReady(true);
-      });
+    void Promise.resolve().then(() => {
+      if (active) void refresh();
+    });
     const subscription = AppState.addEventListener("change", (state) => {
       if (state === "active") void refresh();
     });
     return () => {
       active = false;
+      invalidate();
       subscription.remove();
     };
-  }, [refresh]);
+  }, [refresh, invalidate]);
 
   async function accept(token: Token) {
+    const current = ++generation.current;
     try {
       await saveToken(token);
     } catch (failure) {
@@ -98,11 +88,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       );
       throw failure;
     }
-    await refresh();
+    if (current === generation.current) await refresh();
   }
   async function logout() {
-    generation.current++;
+    const current = ++generation.current;
     const token = await readToken();
+    if (current !== generation.current) return;
     if (token)
       await api("/api/v1/auth/token", "DELETE", undefined, token.token).catch(
         (failure) => {
@@ -110,8 +101,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             throw failure;
         },
       );
-    await clearToken();
-    setUser(null);
+    const cleared = token ? await clearToken(token.token) : true;
+    if (cleared && current === generation.current) {
+      setUser(null);
+      setError("");
+      setReady(true);
+    } else if (cleared) {
+      // A foreground refresh may have advanced the generation without replacing
+      // the token. Reconcile storage and invalidate its obsolete account response.
+      await refresh();
+    }
   }
   return (
     <AuthContext value={{ user, ready, error, accept, refresh, logout }}>

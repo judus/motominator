@@ -1,0 +1,34 @@
+<?php
+
+// Analysis only: callback return contracts verified against Laravel 13.35's Lock::block and Repository::scope.
+
+namespace Illuminate\Contracts\Cache;
+
+interface Lock
+{
+    /**
+     * @template TResult
+     * @param int $seconds
+     * @param (callable(): TResult)|null $callback
+     * @return ($callback is null ? true : TResult)
+     * @throws \Illuminate\Contracts\Cache\LockTimeoutException
+     */
+    public function block($seconds, $callback = null);
+}
+
+class LockTimeoutException extends \Exception
+{
+}
+
+namespace Illuminate\Log\Context;
+
+class Repository
+{
+}
+
+namespace Illuminate\Support\Facades;
+
+/** @mixin \Illuminate\Log\Context\Repository */
+class Context
+{
+}

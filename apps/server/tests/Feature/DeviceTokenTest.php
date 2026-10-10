@@ -14,49 +14,88 @@ class DeviceTokenTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
-    public function test_device_login_issues_a_named_expiring_token_with_limited_permissions(): void
+    public function testDeviceLoginIssuesANamedExpiringTokenWithLimitedPermissions(): void
     {
         $this->freezeTime();
         $user = User::factory()->create();
-        $response = $this->postJson('/api/v1/auth/tokens', ['email' => $user->email, 'password' => 'password', 'device_name' => 'My Android'])->assertCreated();
-        $token = PersonalAccessToken::findToken($response->json('token'));
+        $response = $this->postJson(
+            '/api/v1/auth/tokens',
+            ['email' => $user->email, 'password' => 'password', 'device_name' => 'My Android']
+        )->assertCreated();
+        $token = PersonalAccessToken::findToken($this->stringValue($response->json('token')));
+        $this->assertInstanceOf(PersonalAccessToken::class, $token);
+        $this->assertNotNull($token->expires_at);
         $this->assertSame('My Android', $token->name);
-        $this->assertSame(['account:read'], $token->abilities);
+        $this->assertSame(
+            ['account:read', 'account:write', 'garage:read', 'garage:write', 'ai:read', 'ai:write'],
+            $token->abilities,
+        );
         $this->assertSame(now()->addDays(30)->timestamp, $token->expires_at->timestamp);
-        $this->withToken($response->json('token'))->getJson('/api/v1/user')->assertOk()->assertJsonPath('id', $user->id);
+        $this->withToken($this->stringValue($response->json('token')))->getJson(
+            '/api/v1/user'
+        )->assertOk()->assertJsonPath(
+            'id',
+            $user->id
+        );
     }
 
-    public function test_invalid_credentials_do_not_issue_tokens_and_are_throttled(): void
+    public function testInvalidCredentialsDoNotIssueTokensAndAreThrottled(): void
     {
         $user = User::factory()->create();
         for ($attempt = 0; $attempt < 5; $attempt++) {
-            $this->postJson('/api/v1/auth/tokens', ['email' => $user->email, 'password' => 'wrong', 'device_name' => 'Android'])->assertUnprocessable();
+            $this->postJson(
+                '/api/v1/auth/tokens',
+                ['email' => $user->email, 'password' => 'wrong', 'device_name' => 'Android']
+            )->assertUnprocessable();
         }
-        $this->postJson('/api/v1/auth/tokens', ['email' => $user->email, 'password' => 'wrong', 'device_name' => 'Android'])->assertTooManyRequests();
+        $this->postJson(
+            '/api/v1/auth/tokens',
+            ['email' => $user->email, 'password' => 'wrong', 'device_name' => 'Android']
+        )->assertTooManyRequests();
         $this->assertDatabaseCount('personal_access_tokens', 0);
     }
 
-    public function test_two_factor_login_issues_no_token_until_the_challenge_is_validated(): void
+    public function testTwoFactorLoginIssuesNoTokenUntilTheChallengeIsValidated(): void
     {
         $secret = 'JBSWY3DPEHPK3PXP';
-        $user = User::factory()->create(['two_factor_secret' => Fortify::currentEncrypter()->encrypt($secret), 'two_factor_confirmed_at' => now()]);
+        $user = User::factory()->create(
+            ['two_factor_secret' => Fortify::currentEncrypter()->encrypt($secret), 'two_factor_confirmed_at' => now()]
+        );
         $data = ['email' => $user->email, 'password' => 'password', 'device_name' => 'Android'];
         $this->postJson('/api/v1/auth/tokens', $data)->assertStatus(202)->assertJsonPath('two_factor', true);
         $this->assertDatabaseCount('personal_access_tokens', 0);
         $this->postJson('/api/v1/auth/tokens', $data + ['code' => 'invalid'])->assertUnprocessable();
-        $this->postJson('/api/v1/auth/tokens', $data + ['code' => (new Google2FA)->getCurrentOtp($secret)])->assertCreated();
+        $this->postJson(
+            '/api/v1/auth/tokens',
+            $data + ['code' => (new Google2FA())->getCurrentOtp($secret)]
+        )->assertCreated();
     }
 
-    public function test_native_recovery_codes_are_single_use(): void
+    public function testNativeRecoveryCodesAreSingleUse(): void
     {
-        $user = User::factory()->create(['two_factor_secret' => Fortify::currentEncrypter()->encrypt('JBSWY3DPEHPK3PXP'), 'two_factor_confirmed_at' => now(), 'two_factor_recovery_codes' => Fortify::currentEncrypter()->encrypt(json_encode(['recovery-code']))]);
-        $data = ['email' => $user->email, 'password' => 'password', 'device_name' => 'Android', 'recovery_code' => 'recovery-code'];
+        $user = User::factory()->create(
+            [
+                'two_factor_secret' => Fortify::currentEncrypter()->encrypt(
+                    'JBSWY3DPEHPK3PXP'
+                ),
+                'two_factor_confirmed_at' => now(),
+                'two_factor_recovery_codes' => Fortify::currentEncrypter()->encrypt(
+                    json_encode(['recovery-code'])
+                )
+            ]
+        );
+        $data = [
+            'email' => $user->email,
+            'password' => 'password',
+            'device_name' => 'Android',
+            'recovery_code' => 'recovery-code'
+        ];
         $this->postJson('/api/v1/auth/tokens', $data)->assertCreated();
         $this->postJson('/api/v1/auth/tokens', $data)->assertUnprocessable();
         $this->assertDatabaseCount('personal_access_tokens', 1);
     }
 
-    public function test_expired_and_revoked_tokens_cannot_load_the_current_user(): void
+    public function testExpiredAndRevokedTokensCannotLoadTheCurrentUser(): void
     {
         $user = User::factory()->create();
         $expired = $user->createToken('Expired', ['account:read'], now()->subMinute());
@@ -67,14 +106,14 @@ class DeviceTokenTest extends TestCase
         $this->withToken($revoked->plainTextToken)->getJson('/api/v1/user')->assertUnauthorized();
     }
 
-    public function test_tokens_without_account_read_permission_are_rejected(): void
+    public function testTokensWithoutAccountReadPermissionAreRejected(): void
     {
         $user = User::factory()->create();
         $token = $user->createToken('Other', ['other']);
         $this->withToken($token->plainTextToken)->getJson('/api/v1/user')->assertForbidden();
     }
 
-    public function test_native_logout_revokes_only_its_current_token(): void
+    public function testNativeLogoutRevokesOnlyItsCurrentToken(): void
     {
         $user = User::factory()->create();
         $current = $user->createToken('Current', ['account:read']);
@@ -84,17 +123,20 @@ class DeviceTokenTest extends TestCase
         $this->assertDatabaseHas('personal_access_tokens', ['id' => $other->accessToken->id]);
     }
 
-    public function test_device_revocation_requires_confirmation_and_ownership(): void
+    public function testDeviceRevocationRequiresConfirmationAndOwnership(): void
     {
         $user = User::factory()->create();
         $other = User::factory()->create();
         $token = $user->createToken('Mine', ['account:read']);
         $foreign = $other->createToken('Not mine', ['account:read']);
-        $this->actingAs($user)->getJson('/user/devices')->assertOk()->assertJsonCount(1)->assertJsonMissingPath('0.token');
-        $this->deleteJson('/user/devices/'.$token->accessToken->id)->assertStatus(423);
-        $this->withSession(['auth.password_confirmed_at' => time()])->deleteJson('/user/devices/'.$foreign->accessToken->id)->assertNotFound();
-        $this->deleteJson('/user/devices/'.$token->accessToken->id)->assertOk();
+        $this->actingAs($user)->getJson('/user/devices')->assertOk()->assertJsonCount(1)->assertJsonMissingPath(
+            '0.token'
+        );
+        $this->deleteJson('/user/devices/' . $token->accessToken->id)->assertStatus(423);
+        $this->withSession(['auth.password_confirmed_at' => time()])->deleteJson(
+            '/user/devices/' . $foreign->accessToken->id
+        )->assertNotFound();
+        $this->deleteJson('/user/devices/' . $token->accessToken->id)->assertOk();
         $this->assertDatabaseHas('personal_access_tokens', ['id' => $foreign->accessToken->id]);
-
     }
 }

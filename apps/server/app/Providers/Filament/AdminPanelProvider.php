@@ -2,7 +2,7 @@
 
 namespace App\Providers\Filament;
 
-use App\Filament\Auth\Register;
+use App\Accounts\Filament\Auth\Register;
 use Filament\Auth\MultiFactor\App\AppAuthentication;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
@@ -39,7 +39,9 @@ class AdminPanelProvider extends PanelProvider
             ->colors([
                 'primary' => Color::Amber,
             ])
-            ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
+            ->discoverResources(in: app_path('Accounts/Filament/Resources'), for: 'App\Accounts\Filament\Resources')
+        ->discoverResources(in: app_path('Garage/Filament/Resources'), for: 'App\Garage\Filament\Resources')
+        ->discoverResources(in: app_path('Activity/Filament/Resources'), for: 'App\Activity\Filament\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')
             ->pages([
                 Dashboard::class,

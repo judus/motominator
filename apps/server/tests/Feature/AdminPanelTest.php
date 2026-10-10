@@ -2,9 +2,9 @@
 
 namespace Tests\Feature;
 
-use App\Filament\Auth\Register;
-use App\Filament\Resources\Users\Pages\CreateUser;
-use App\Filament\Resources\Users\Pages\EditUser;
+use App\Accounts\Filament\Auth\Register;
+use App\Accounts\Filament\Resources\Users\Pages\CreateUser;
+use App\Accounts\Filament\Resources\Users\Pages\EditUser;
 use App\Models\User;
 use Filament\Auth\Pages\Login;
 use Filament\Facades\Filament;
@@ -29,12 +29,12 @@ class AdminPanelTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('admin'));
     }
 
-    public function test_guests_are_redirected_to_admin_login(): void
+    public function testGuestsAreRedirectedToAdminLogin(): void
     {
         $this->get('/admin/users')->assertRedirect('/admin/login');
     }
 
-    public function test_regular_users_cannot_access_user_management_even_locally(): void
+    public function testRegularUsersCannotAccessUserManagementEvenLocally(): void
     {
         config(['app.env' => 'local']);
         $user = User::factory()->create();
@@ -42,14 +42,14 @@ class AdminPanelTest extends TestCase
         $this->actingAs($user)->get('/admin/users')->assertForbidden();
     }
 
-    public function test_administrators_can_access_user_management(): void
+    public function testAdministratorsCanAccessUserManagement(): void
     {
         $admin = User::factory()->create(['is_admin' => true]);
 
         $this->actingAs($admin)->get('/admin/users')->assertOk();
     }
 
-    public function test_registration_creates_a_regular_user_and_returns_to_guest_state(): void
+    public function testRegistrationCreatesARegularUserAndReturnsToGuestState(): void
     {
         Notification::fake();
 
@@ -67,12 +67,12 @@ class AdminPanelTest extends TestCase
 
         $user = User::query()->where('email', 'rider@example.test')->firstOrFail();
         $this->assertFalse($user->is_admin);
-        $this->assertTrue(Hash::check('safe-password-123', $user->password));
+        $this->assertTrue(Hash::check('safe-password-123', $user->password ?? ''));
         $this->assertGuest();
         Notification::assertSentTo($user, VerifyEmail::class);
     }
 
-    public function test_disabled_registration_rejects_an_already_mounted_form(): void
+    public function testDisabledRegistrationRejectsAnAlreadyMountedForm(): void
     {
         $component = Livewire::test(Register::class);
         config(['auth.registration_enabled' => false]);
@@ -82,14 +82,14 @@ class AdminPanelTest extends TestCase
         $this->assertDatabaseCount('users', 0);
     }
 
-    public function test_disabled_registration_rejects_the_registration_page(): void
+    public function testDisabledRegistrationRejectsTheRegistrationPage(): void
     {
         config(['auth.registration_enabled' => false]);
 
         $this->get('/admin/register')->assertForbidden();
     }
 
-    public function test_signed_out_verification_links_redirect_to_the_available_login_page(): void
+    public function testSignedOutVerificationLinksRedirectToTheAvailableLoginPage(): void
     {
         $user = User::factory()->unverified()->create();
         $url = URL::temporarySignedRoute('verification.verify', now()->addHour(), [
@@ -100,7 +100,7 @@ class AdminPanelTest extends TestCase
         $this->get($url)->assertRedirect('/admin/login');
     }
 
-    public function test_registration_validates_required_fields(): void
+    public function testRegistrationValidatesRequiredFields(): void
     {
         Livewire::test(Register::class)
             ->fillForm(['name' => '', 'email' => '', 'password' => '', 'passwordConfirmation' => ''])
@@ -110,7 +110,7 @@ class AdminPanelTest extends TestCase
         $this->assertDatabaseCount('users', 0);
     }
 
-    public function test_fortify_registration_cannot_grant_administrator_access(): void
+    public function testFortifyRegistrationCannotGrantAdministratorAccess(): void
     {
         Notification::fake();
 
@@ -127,7 +127,7 @@ class AdminPanelTest extends TestCase
         Notification::assertSentTo($user, VerifyEmail::class);
     }
 
-    public function test_administrators_can_create_regular_users_with_hashed_passwords(): void
+    public function testAdministratorsCanCreateRegularUsersWithHashedPasswords(): void
     {
         $this->actingAs(User::factory()->create(['is_admin' => true]));
 
@@ -139,10 +139,10 @@ class AdminPanelTest extends TestCase
 
         $user = User::query()->where('email', 'rider@example.test')->firstOrFail();
         $this->assertFalse($user->is_admin);
-        $this->assertTrue(Hash::check('safe-password-123', $user->password));
+        $this->assertTrue(Hash::check('safe-password-123', $user->password ?? ''));
     }
 
-    public function test_editing_email_clears_verification_and_blank_password_preserves_password(): void
+    public function testEditingEmailClearsVerificationAndBlankPasswordPreservesPassword(): void
     {
         $this->actingAs(User::factory()->create(['is_admin' => true]));
         $user = User::factory()->create();
@@ -156,10 +156,10 @@ class AdminPanelTest extends TestCase
         $this->assertSame('Updated Rider', $user->name);
         $this->assertSame('updated@example.test', $user->email);
         $this->assertNull($user->email_verified_at);
-        $this->assertTrue(Hash::check('password', $user->password));
+        $this->assertTrue(Hash::check('password', $user->password ?? ''));
     }
 
-    public function test_administrators_can_sign_in(): void
+    public function testAdministratorsCanSignIn(): void
     {
         $admin = User::factory()->create(['is_admin' => true]);
 
@@ -171,7 +171,7 @@ class AdminPanelTest extends TestCase
         $this->assertAuthenticatedAs($admin);
     }
 
-    public function test_regular_users_cannot_sign_in_to_the_admin_panel(): void
+    public function testRegularUsersCannotSignInToTheAdminPanel(): void
     {
         $user = User::factory()->create();
 
@@ -183,11 +183,13 @@ class AdminPanelTest extends TestCase
         $this->assertGuest();
     }
 
-    public function test_confirmed_fortify_two_factor_authentication_requires_an_admin_login_challenge(): void
+    public function testConfirmedFortifyTwoFactorAuthenticationRequiresAnAdminLoginChallenge(): void
     {
         $admin = User::factory()->create([
             'is_admin' => true,
-            'two_factor_secret' => Fortify::currentEncrypter()->encrypt('JBSWY3DPEHPK3PXP'),
+            'two_factor_secret' => Fortify::currentEncrypter()->encrypt(
+                'JBSWY3DPEHPK3PXP'
+            ),
             'two_factor_confirmed_at' => now(),
         ]);
 
@@ -200,16 +202,16 @@ class AdminPanelTest extends TestCase
         $this->assertGuest();
     }
 
-    public function test_console_command_grants_administrator_access_to_an_existing_user(): void
+    public function testConsoleCommandGrantsAdministratorAccessToAnExistingUser(): void
     {
         $user = User::factory()->create();
 
-        $this->artisan('app:grant-admin', ['email' => $user->email])->assertSuccessful();
+        $this->pendingCommand('app:grant-admin', ['email' => $user->email])->assertSuccessful();
 
         $this->assertTrue($user->refresh()->is_admin);
     }
 
-    public function test_confirmed_fortify_authenticator_code_completes_admin_login(): void
+    public function testConfirmedFortifyAuthenticatorCodeCompletesAdminLogin(): void
     {
         $secret = 'JBSWY3DPEHPK3PXP';
         $admin = User::factory()->create([
@@ -221,14 +223,14 @@ class AdminPanelTest extends TestCase
             ->fillForm(['email' => $admin->email, 'password' => 'password'])
             ->call('authenticate');
 
-        $login->set('data.multiFactor.app.code', (new Google2FA)->getCurrentOtp($secret))
+        $login->set('data.multiFactor.app.code', (new Google2FA())->getCurrentOtp($secret))
             ->call('authenticate')
             ->assertHasNoErrors();
 
         $this->assertAuthenticatedAs($admin);
     }
 
-    public function test_password_edits_are_hashed_and_cannot_change_administrator_status(): void
+    public function testPasswordEditsAreHashedAndCannotChangeAdministratorStatus(): void
     {
         $this->actingAs(User::factory()->create(['is_admin' => true]));
         $user = User::factory()->create();
@@ -240,14 +242,14 @@ class AdminPanelTest extends TestCase
             ->assertHasNoFormErrors();
 
         $user->refresh();
-        $this->assertTrue(Hash::check('replacement-password', $user->password));
+        $this->assertTrue(Hash::check('replacement-password', $user->password ?? ''));
         $this->assertFalse($user->is_admin);
         $this->assertNotNull($user->email_verified_at);
     }
 
-    public function test_console_command_does_not_create_an_unknown_account(): void
+    public function testConsoleCommandDoesNotCreateAnUnknownAccount(): void
     {
-        $this->artisan('app:grant-admin', ['email' => 'missing@example.test'])->assertFailed();
+        $this->pendingCommand('app:grant-admin', ['email' => 'missing@example.test'])->assertFailed();
 
         $this->assertDatabaseCount('users', 0);
     }

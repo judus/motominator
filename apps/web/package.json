@@ -17,8 +17,12 @@
     "format:check": "prettier --ignore-path ../../.prettierignore --check ."
   },
   "dependencies": {
+    "@mantine/core": "^9.7.1",
+    "@mantine/hooks": "^9.7.1",
+    "@motominator/client": "0.0.0",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "react-router": "^8.4.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.0",

@@ -14,30 +14,50 @@ class AccountSettingsTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
-    public function test_profile_updates_only_the_authenticated_account_and_clears_verification(): void
+    public function testProfileUpdatesOnlyTheAuthenticatedAccountAndClearsVerification(): void
     {
         Notification::fake();
         $user = User::factory()->create();
         $other = User::factory()->create();
-        $this->actingAs($user)->putJson('/user/profile-information', ['name' => 'Updated Rider', 'email' => 'new@example.test', 'id' => $other->id, 'is_admin' => true])->assertOk();
-        $this->assertSame('Updated Rider', $user->fresh()->name);
-        $this->assertNull($user->fresh()->email_verified_at);
-        $this->assertFalse($user->fresh()->is_admin);
-        $this->assertSame($other->name, $other->fresh()->name);
+        $this->actingAs($user)->putJson(
+            '/user/profile-information',
+            [
+                'name' => 'Updated Rider', 'email' => 'new@example.test', 'id' => $other->id,
+                'is_admin' => true, 'current_password' => 'password',
+            ]
+        )->assertOk();
+        $this->assertSame('Updated Rider', $user->refresh()->name);
+        $this->assertNull($user->refresh()->email_verified_at);
+        $this->assertFalse($user->refresh()->is_admin);
+        $this->assertSame($other->name, $other->refresh()->name);
         Notification::assertSentTo($user, VerifyEmail::class);
     }
 
-    public function test_password_updates_require_the_current_password(): void
+    public function testPasswordUpdatesRequireTheCurrentPassword(): void
     {
         $user = User::factory()->create();
         $user->createToken('phone', ['account:read']);
-        $this->actingAs($user)->putJson('/user/password', ['current_password' => 'wrong', 'password' => 'new-password-123', 'password_confirmation' => 'new-password-123'])->assertUnprocessable();
-        $this->putJson('/user/password', ['current_password' => 'password', 'password' => 'new-password-123', 'password_confirmation' => 'new-password-123'])->assertOk();
-        $this->assertTrue(Hash::check('new-password-123', $user->fresh()->password));
+        $this->actingAs($user)->putJson(
+            '/user/password',
+            [
+                'current_password' => 'wrong',
+                'password' => 'new-password-123',
+                'password_confirmation' => 'new-password-123'
+            ]
+        )->assertUnprocessable();
+        $this->putJson(
+            '/user/password',
+            [
+                'current_password' => 'password',
+                'password' => 'new-password-123',
+                'password_confirmation' => 'new-password-123'
+            ]
+        )->assertOk();
+        $this->assertTrue(Hash::check('new-password-123', $user->refresh()->password ?? ''));
         $this->assertSame(0, $user->tokens()->count());
     }
 
-    public function test_a_browser_session_with_an_old_password_hash_is_rejected(): void
+    public function testABrowserSessionWithAnOldPasswordHashIsRejected(): void
     {
         $user = User::factory()->create();
         $this->actingAs($user)->withSession(['password_hash_web' => 'old-password-hash'])
@@ -45,7 +65,7 @@ class AccountSettingsTest extends TestCase
         $this->assertGuest();
     }
 
-    public function test_two_factor_secrets_and_changes_require_recent_password_confirmation(): void
+    public function testTwoFactorSecretsAndChangesRequireRecentPasswordConfirmation(): void
     {
         $this->actingAs(User::factory()->create());
         $this->postJson('/user/two-factor-authentication')->assertStatus(423);
@@ -54,42 +74,56 @@ class AccountSettingsTest extends TestCase
         $this->postJson('/user/confirm-password', ['password' => 'wrong'])->assertUnprocessable();
     }
 
-    public function test_two_factor_enrollment_confirmation_and_disabling(): void
+    public function testTwoFactorEnrollmentConfirmationAndDisabling(): void
     {
         $user = User::factory()->create();
         $this->actingAs($user)->postJson('/user/confirm-password', ['password' => 'password'])->assertSuccessful();
         $this->postJson('/user/two-factor-authentication')->assertSuccessful();
-        $this->assertFalse($user->fresh()->hasEnabledTwoFactorAuthentication());
+        $this->assertFalse($user->refresh()->hasEnabledTwoFactorAuthentication());
         $secret = $this->getJson('/user/two-factor-secret-key')->assertOk()->json('secretKey');
         $this->postJson('/user/confirmed-two-factor-authentication', ['code' => 'invalid'])->assertUnprocessable();
-        $this->postJson('/user/confirmed-two-factor-authentication', ['code' => (new Google2FA)->getCurrentOtp($secret)])->assertSuccessful();
-        $this->assertTrue($user->fresh()->hasEnabledTwoFactorAuthentication());
+        $this->postJson(
+            '/user/confirmed-two-factor-authentication',
+            ['code' => (new Google2FA())->getCurrentOtp($this->stringValue($secret))]
+        )->assertSuccessful();
+        $this->assertTrue($user->refresh()->hasEnabledTwoFactorAuthentication());
         $this->deleteJson('/user/two-factor-authentication')->assertSuccessful();
-        $this->assertNull($user->fresh()->two_factor_secret);
-        $this->assertNull($user->fresh()->two_factor_recovery_codes);
+        $this->assertNull($user->refresh()->two_factor_secret);
+        $this->assertNull($user->refresh()->two_factor_recovery_codes);
     }
 
-    public function test_recovery_codes_are_rotated_and_consumed_by_login(): void
+    public function testRecoveryCodesAreRotatedAndConsumedByLogin(): void
     {
         $user = User::factory()->create();
         $this->actingAs($user)->postJson('/user/confirm-password', ['password' => 'password']);
         $this->postJson('/user/two-factor-authentication');
         $secret = $this->getJson('/user/two-factor-secret-key')->json('secretKey');
-        $this->postJson('/user/confirmed-two-factor-authentication', ['code' => (new Google2FA)->getCurrentOtp($secret)]);
+        $this->postJson(
+            '/user/confirmed-two-factor-authentication',
+            ['code' => (new Google2FA())->getCurrentOtp($this->stringValue($secret))]
+        );
         $original = $this->getJson('/user/two-factor-recovery-codes')->assertOk()->json();
         $this->postJson('/user/two-factor-recovery-codes')->assertSuccessful();
         $codes = $this->getJson('/user/two-factor-recovery-codes')->assertOk()->json();
         $this->assertNotSame($original, $codes);
         $this->postJson('/logout');
-        $this->postJson('/login', ['email' => $user->email, 'password' => 'password'])->assertJsonPath('two_factor', true);
+        $this->postJson('/login', ['email' => $user->email, 'password' => 'password'])->assertJsonPath(
+            'two_factor',
+            true
+        );
         $this->postJson('/two-factor-challenge', ['code' => 'invalid'])->assertUnprocessable();
-        $this->postJson('/two-factor-challenge', ['recovery_code' => $codes[0]])->assertNoContent();
+        $this->postJson(
+            '/two-factor-challenge',
+            ['recovery_code' => $this->stringValue(data_get($codes, '0'))]
+        )->assertNoContent();
         $this->assertAuthenticatedAs($user);
-        $this->assertNotContains($codes[0], $user->fresh()->recoveryCodes());
+        $this->assertNotContains($this->stringValue(data_get($codes, '0')), $user->refresh()->recoveryCodes());
         $this->postJson('/logout');
         $this->postJson('/login', ['email' => $user->email, 'password' => 'password']);
-        $this->postJson('/two-factor-challenge', ['recovery_code' => $codes[0]])->assertUnprocessable();
+        $this->postJson(
+            '/two-factor-challenge',
+            ['recovery_code' => $this->stringValue(data_get($codes, '0'))]
+        )->assertUnprocessable();
         $this->assertGuest();
-
     }
 }
