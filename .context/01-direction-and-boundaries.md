@@ -94,8 +94,12 @@ Future API contract/type generation remains an idea; none is installed.
 
 Framework setup and authentication are implemented. The current experiment is a
 personal garage and maintenance log, described below.
-No catalogue domain model, appointment system, map provider,
-AI agent or paid service has been chosen. Hetzner Docker Compose is the envisioned
+Text copilot now uses the Laravel AI SDK, the rider's saved BYOK provider/model
+and read-only garage tools. Web/mobile share conversation behavior and consume
+authenticated Laravel SSE; provider access and conversation storage stay server-side.
+Voice, external MCP tools and AI writes are outside this slice. See notes 09 and 10.
+No catalogue domain model, appointment system or map provider has been chosen.
+Hetzner Docker Compose is the envisioned
 deployment direction; its concrete configuration is still undecided.
 
 The user initially deferred root agent instructions until official framework guidance

@@ -37,6 +37,9 @@ import {
   Title,
 } from "@mantine/core";
 import { AppFrame } from "./ui/AppFrame";
+import { CopilotProvider } from "@motominator/client/react";
+import { client } from "./client";
+import { CopilotPages } from "./copilot/CopilotPages";
 import { Garage } from "./garage/Garage";
 
 function Application() {
@@ -218,60 +221,119 @@ function Application() {
       {!ready ? (
         <p>Loading account…</p>
       ) : user ? (
-        <Routes>
-          <Route
-            path="/"
-            element={
-              <Page
-                title={`Welcome, ${user.name}`}
-                description="Where would you like to go?"
-              >
-                <SimpleGrid cols={{ base: 1, sm: 2 }}>
-                  <Card withBorder p="xl">
-                    <Stack>
-                      <Title order={2} size="h3">
-                        Garage
-                      </Title>
-                      <Text c="dimmed">
-                        Your motorcycles, maintenance and invoices.
-                      </Text>
-                      <Button component={Link} to="/garage" variant="outline">
-                        Open garage
-                      </Button>
-                    </Stack>
-                  </Card>
-                  <Card withBorder p="xl">
-                    <Stack>
-                      <Title order={2} size="h3">
-                        Account
-                      </Title>
-                      <Text c="dimmed">Your profile and preferences.</Text>
-                      <Button component={Link} to="/account" variant="outline">
-                        Open account
-                      </Button>
-                    </Stack>
-                  </Card>
-                </SimpleGrid>
-              </Page>
-            }
-          />
-          <Route
-            path="/garage/*"
-            element={
-              <Garage
-                key={user.id}
-                verified={user.email_verified_at !== null}
-              />
-            }
-          />
-          <Route
-            path="/account/*"
-            element={
-              <AccountPages
-                user={user}
-                refresh={refresh}
-                providers={config.providers ?? []}
-                verification={
+        <CopilotProvider key={user.id} client={client}>
+          <Routes>
+            <Route
+              path="/"
+              element={
+                <Page
+                  title={`Welcome, ${user.name}`}
+                  description="Where would you like to go?"
+                >
+                  <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                    <Card withBorder p="xl">
+                      <Stack>
+                        <Title order={2} size="h3">
+                          Garage
+                        </Title>
+                        <Text c="dimmed">
+                          Your motorcycles, maintenance and invoices.
+                        </Text>
+                        <Button component={Link} to="/garage" variant="outline">
+                          Open garage
+                        </Button>
+                      </Stack>
+                    </Card>
+                    <Card withBorder p="xl">
+                      <Stack>
+                        <Title order={2} size="h3">
+                          Copilot
+                        </Title>
+                        <Text c="dimmed">
+                          Ask about your motorcycles and recorded history.
+                        </Text>
+                        <Button
+                          component={Link}
+                          to="/copilot"
+                          variant="outline"
+                        >
+                          Open copilot
+                        </Button>
+                      </Stack>
+                    </Card>
+                    <Card withBorder p="xl">
+                      <Stack>
+                        <Title order={2} size="h3">
+                          Account
+                        </Title>
+                        <Text c="dimmed">Your profile and preferences.</Text>
+                        <Button
+                          component={Link}
+                          to="/account"
+                          variant="outline"
+                        >
+                          Open account
+                        </Button>
+                      </Stack>
+                    </Card>
+                  </SimpleGrid>
+                </Page>
+              }
+            />
+            <Route
+              path="/copilot/*"
+              element={
+                <CopilotPages verified={user.email_verified_at !== null} />
+              }
+            />
+            <Route
+              path="/garage/*"
+              element={
+                <Garage
+                  key={user.id}
+                  verified={user.email_verified_at !== null}
+                />
+              }
+            />
+            <Route
+              path="/account/*"
+              element={
+                <AccountPages
+                  user={user}
+                  refresh={refresh}
+                  providers={config.providers ?? []}
+                  verification={
+                    <>
+                      {!user.email_verified_at && (
+                        <Button
+                          variant="outline"
+                          w="fit-content"
+                          disabled={busy}
+                          onClick={() =>
+                            void action(async () => {
+                              await request(
+                                "/email/verification-notification",
+                                "POST",
+                              );
+                              setMessage("Verification email sent.");
+                            })
+                          }
+                        >
+                          Resend verification email
+                        </Button>
+                      )}
+                    </>
+                  }
+                />
+              }
+            />
+            <Route
+              path="/verify-email"
+              element={
+                <Page
+                  title="Verify email"
+                  parent={{ to: "/account", label: "account" }}
+                >
                   <>
                     {!user.email_verified_at && (
                       <Button
@@ -292,83 +354,53 @@ function Application() {
                       </Button>
                     )}
                   </>
-                }
-              />
-            }
-          />
-          <Route
-            path="/verify-email"
-            element={
-              <Page
-                title="Verify email"
-                parent={{ to: "/account", label: "account" }}
-              >
-                <>
-                  {!user.email_verified_at && (
-                    <Button
-                      variant="outline"
-                      w="fit-content"
-                      disabled={busy}
-                      onClick={() =>
-                        void action(async () => {
-                          await request(
-                            "/email/verification-notification",
-                            "POST",
-                          );
-                          setMessage("Verification email sent.");
-                        })
-                      }
-                    >
-                      Resend verification email
-                    </Button>
-                  )}
-                </>
-                <Button
-                  disabled={busy}
-                  w="fit-content"
-                  onClick={() =>
-                    void action(async () => {
-                      const target = new URL(
-                        query.get("url") ?? "",
-                        apiBaseUrl,
-                      );
-                      if (
-                        target.origin !== new URL(apiBaseUrl).origin ||
-                        !target.pathname.startsWith("/email/verify/")
-                      )
-                        throw new Error("Invalid verification link.");
-                      await request(target.pathname + target.search);
-                      await refresh();
-                      setMessage("Email verified.");
-                    })
-                  }
-                >
-                  Verify email
-                </Button>
-              </Page>
-            }
-          />
-          {["login", "register", "forgot-password", "reset-password"].map(
-            (path) => (
-              <Route
-                key={path}
-                path={`/${path}`}
-                element={<Navigate to="/" replace />}
-              />
-            ),
-          )}
-          <Route
-            path="*"
-            element={
-              <Page title="Page not found">
-                <Text>This page does not exist.</Text>
-                <Button component={Link} to="/" variant="outline">
-                  Go home
-                </Button>
-              </Page>
-            }
-          />
-        </Routes>
+                  <Button
+                    disabled={busy}
+                    w="fit-content"
+                    onClick={() =>
+                      void action(async () => {
+                        const target = new URL(
+                          query.get("url") ?? "",
+                          apiBaseUrl,
+                        );
+                        if (
+                          target.origin !== new URL(apiBaseUrl).origin ||
+                          !target.pathname.startsWith("/email/verify/")
+                        )
+                          throw new Error("Invalid verification link.");
+                        await request(target.pathname + target.search);
+                        await refresh();
+                        setMessage("Email verified.");
+                      })
+                    }
+                  >
+                    Verify email
+                  </Button>
+                </Page>
+              }
+            />
+            {["login", "register", "forgot-password", "reset-password"].map(
+              (path) => (
+                <Route
+                  key={path}
+                  path={`/${path}`}
+                  element={<Navigate to="/" replace />}
+                />
+              ),
+            )}
+            <Route
+              path="*"
+              element={
+                <Page title="Page not found">
+                  <Text>This page does not exist.</Text>
+                  <Button component={Link} to="/" variant="outline">
+                    Go home
+                  </Button>
+                </Page>
+              }
+            />
+          </Routes>
+        </CopilotProvider>
       ) : page === "/register" && !config.registration_enabled ? (
         <p>Account registration is closed.</p>
       ) : (

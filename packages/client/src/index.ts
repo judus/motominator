@@ -4,3 +4,4 @@ export * from "./client";
 export * from "./garage-form";
 export * from "./invoices";
 export * from "./accounts";
+export * from "./copilot";

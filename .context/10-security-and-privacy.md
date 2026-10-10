@@ -30,6 +30,34 @@ remove partial files. Native invoice copies have feature-owned paths and leases;
 abandonment waits for active uploads, and launch sweeps unleased copies older than
 24 hours. Original selected documents and photos remain intact.
 
+## Text copilot
+
+Laravel owns BYOK credentials, SDK requests and conversation storage. Both clients
+use authenticated HTTP/SSE; they do not connect to the model provider directly.
+Conversation queries scope the participant type and ID, and native permissions
+separate `ai:read`, `ai:write` and `garage:read`. Writes require a freshly verified
+account. User keys never fall back to an application key.
+
+The agent has two read-only garage tools: paginated motorcycle summaries and
+bounded maintenance/mileage history. Every tool checks current account ownership;
+missing records are unknown history, not evidence that maintenance never happened.
+Model output renders as plain text. Tools cannot change data or access invoices,
+credentials or another rider's records. Prompt instructions are additional guidance;
+authorization is enforced in PHP independently of model behavior.
+
+Messages and requested garage facts are disclosed to the selected provider. The
+SDK keeps conversation content and internal tool steps in the private database;
+the public history exposes user/assistant text only. Provider exception messages
+are replaced before SDK persistence and excluded from application diagnostics.
+OpenAI requests disable provider-side response storage where supported; this does
+not establish a provider-wide retention policy.
+
+Reply/deletion locks prevent concurrent turns and deletion during generation.
+Stop closes the client connection; Laravel detects it between SDK events, stores
+an incomplete reply and releases the lock. This does not promise immediate upstream
+cancellation or prevent charges already incurred. Production SSE/proxy behavior,
+conversation retention/quotas and account-wide export/deletion remain release work.
+
 ## Client authentication
 
 Browser auth generations prevent old refresh/401 responses from restoring or

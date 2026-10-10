@@ -1,4 +1,9 @@
-import { ApiError, createClient } from "@motominator/client";
+import {
+  ApiError,
+  createClient,
+  decodeStream,
+  type StreamConnection,
+} from "@motominator/client";
 import { fetch } from "expo/fetch";
 import * as SecureStore from "expo-secure-store";
 import * as Crypto from "expo-crypto";
@@ -27,9 +32,22 @@ export async function api<T>(
   data?: unknown,
   token?: string,
 ): Promise<T> {
+  const response = await apiResponse(path, method, data, token);
+  const result = await response.json().catch(() => ({}));
+  return result as T;
+}
+
+async function apiResponse(
+  path: string,
+  method: string,
+  data?: unknown,
+  token?: string,
+  signal?: AbortSignal,
+) {
   const response = await fetch(`${apiBaseUrl}${path}`, {
     method,
     credentials: "omit",
+    signal,
     headers: {
       Accept: "application/json",
       ...(data instanceof FormData
@@ -41,8 +59,8 @@ export async function api<T>(
       ? {}
       : { body: data instanceof FormData ? data : JSON.stringify(data) }),
   });
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok)
+  if (!response.ok) {
+    const result = await response.json().catch(() => ({}));
     throw new AuthError(
       Object.values(result.errors ?? {})
         .flat()
@@ -51,7 +69,45 @@ export async function api<T>(
         "Unable to complete authentication.",
       response.status,
     );
-  return result as T;
+  }
+  return response;
+}
+
+export function authenticatedStream(
+  path: string,
+  data: unknown,
+  onExpired: () => void,
+): StreamConnection {
+  const controller = new AbortController();
+  async function* chunks() {
+    const token = await readToken();
+    if (!token) {
+      onExpired();
+      throw new AuthError("Your session expired. Please sign in again.", 401);
+    }
+    try {
+      const response = await apiResponse(
+        path,
+        "POST",
+        data,
+        token.token,
+        controller.signal,
+      );
+      if (
+        !response.body ||
+        !response.headers.get("Content-Type")?.startsWith("text/event-stream")
+      )
+        throw new Error("The server did not return a chat stream.");
+      yield* decodeStream(response.body, new TextDecoder());
+    } catch (failure) {
+      if (failure instanceof AuthError && failure.status === 401) {
+        await clearToken(token.token);
+        onExpired();
+      }
+      throw failure;
+    }
+  }
+  return { chunks: chunks(), cancel: () => controller.abort() };
 }
 
 // Serialize reads and mutations: comparison and deletion must be one operation.

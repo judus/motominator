@@ -8,7 +8,8 @@ separate package build or watch process is required.
 
 - `@motominator/client`: API models, endpoint operations, form metadata and error helpers.
 - `@motominator/client/react`: pagination, garage/history operations, form drafts
-  and AI settings hooks. These share behavior, not global state or a visual tree.
+  and AI settings hooks. These share behavior without rendering app UI. Copilot
+  additionally keeps an account-scoped conversation session above the app routes.
 - Each app owns its HTTP transport and authentication lifecycle. Browser requests
   use cookies/CSRF; native requests use SecureStore tokens and refresh account state
   on unauthorized responses. The package does not import either application.
@@ -89,3 +90,17 @@ Browser provider linking keeps its password-confirmed cookie/OAuth redirect.
 Native linking prepares a proof verifier, opens the provider in the platform browser
 and validates/consumes the returned intent. These platform protocols stay in their
 respective adapters; common HTTP operations remain here.
+
+## Text copilot
+
+Supply the optional third `createClient(request, schedule, stream)` argument for
+chat. The app's stream adapter owns authenticated fetch, cancellation and its UTF-8
+decoder; the package parses Laravel's small SSE contract. It never receives a
+provider key. Mount `CopilotProvider` above authenticated routes and key it by user
+ID. `useCopilot` owns history pagination, drafts, streamed replies and explicit
+retries. Navigation within that account retains the selected chat; switching chats
+or signing out cancels the active connection. Apps own screens and deletion prompts.
+
+Failed or stopped replies retain partial text and restore the submitted draft.
+Retries can incur another provider charge and are never automatic. Stopping closes
+the client connection; server interruption is detected between SDK stream events.
